@@ -1,0 +1,8 @@
+Build.bat is already running, waiting for existing script to terminate...
+Using bundled DotNet SDK version: 8.0.412 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" Aura_LearnEditor Win64 Development -Project=D:\UnrealProjects\GASAura\Aura_Learn.uproject -WaitMutex
+Log file: C:\Users\yasuozheng\AppData\Local\UnrealBuildTool\Log.txt
+Unable to build while Live Coding is active. Exit the editor and game, or press Ctrl+Alt+F11 if iterating on code in the editor or game
+
+Result: Failed (OtherCompilationError)
+Total execution time: 9.03 seconds

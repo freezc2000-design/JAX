@@ -1,0 +1,38 @@
+[
+	{
+		"Name": "Attributes.Primary.Strength",
+		"1": 12,
+		"5": 20,
+		"10": 28,
+		"15": 34,
+		"20": 41,
+		"80": 60
+	},
+	{
+		"Name": "Attributes.Primary.Intelligence",
+		"1": 4,
+		"5": 7,
+		"10": 10,
+		"15": 12,
+		"20": 19,
+		"80": 45
+	},
+	{
+		"Name": "Attributes.Primary.Resilience",
+		"1": 15,
+		"5": 20,
+		"10": 24,
+		"15": 29,
+		"20": 34,
+		"80": 60
+	},
+	{
+		"Name": "Attributes.Primary.Vigor",
+		"1": 10,
+		"5": 15,
+		"10": 20,
+		"15": 24,
+		"20": 27,
+		"80": 50
+	}
+]

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ue-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "ue-mcp@latest",
+        "D:/UnrealProjects/GASAura/Aura_Learn.uproject"
+      ]
+    }
+  }
+}
