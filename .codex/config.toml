@@ -1,0 +1,25 @@
+[mcp_servers.ue-mcp]
+command = "npx"
+args = [
+    "-y",
+    "ue-mcp@latest",
+    "D:/UnrealProjects/GASAura/Aura_Learn.uproject",
+]
+
+[mcp_servers.ue-mcp.tools.project]
+approval_mode = "approve"
+
+[mcp_servers.ue-mcp.tools.editor]
+approval_mode = "approve"
+
+[mcp_servers.ue-mcp.tools.level]
+approval_mode = "approve"
+
+[mcp_servers.ue-mcp.tools.asset]
+approval_mode = "approve"
+
+[mcp_servers.ue-mcp.tools.blueprint]
+approval_mode = "approve"
+
+[mcp_servers.ue-mcp.tools.widget]
+approval_mode = "approve"
