@@ -72,6 +72,14 @@ public:
     UPROPERTY(EditDefaultsOnly, Category="Y3|SkillChoice")
     TObjectPtr<class UDataTable> SkillTuningTable;
 
+    /** 兜底升级卡表(行类型 FY3UpgradeChoiceRow)。技能池不足3张时用属性/金币卡补位;全满级后三选一只出这些。 */
+    UPROPERTY(EditDefaultsOnly, Category="Y3|SkillChoice")
+    TObjectPtr<class UDataTable> UpgradeChoiceTable;
+
+    /** Tag→FGameplayAttribute 解析源(配 DA_AttributeInfo);属性卡应用时查询 */
+    UPROPERTY(EditDefaultsOnly, Category="Y3|SkillChoice")
+    TObjectPtr<class UAttributeInfo> AttributeInfoSource;
+
     /** 升级时弹三选一(由 AuraCharacter::LevelUp 调用) */
     UFUNCTION(BlueprintCallable, Category="Y3|SkillChoice")
     void ShowSkillChoice();
@@ -83,9 +91,26 @@ public:
     /** 读技能库存(可升级份数);表未配该技能则返回 0(抽到即定级、不升级) */
     int32 Y3_GetSkillStock(const FGameplayTag& AbilityTag) const;
 
+    /** 应用一张兜底强化卡(属性/金币)。三选一选中、图鉴点击测试共用。 */
+    UFUNCTION(BlueprintCallable, Category="Y3|SkillChoice")
+    void ApplyUpgradeChoice(FName RowName);
+
     UFUNCTION() void OnSkillCard1Clicked();
     UFUNCTION() void OnSkillCard2Clicked();
     UFUNCTION() void OnSkillCard3Clicked();
+
+    // ===== 角色属性面板（HUD"属性"按钮开关） =====
+    UPROPERTY(EditDefaultsOnly, Category="Y3|HUD")
+    TSubclassOf<class UUserWidget> AttributeMenuClass;
+
+    UPROPERTY(BlueprintReadOnly, Category="Y3|HUD")
+    TObjectPtr<class UUserWidget> AttributeMenuInstance;
+
+    /** 开/关角色属性详情面板(WBP_AttributeMenu 自取控制器,无需喂参) */
+    UFUNCTION(BlueprintCallable, Category="Y3|HUD")
+    void Y3ToggleAttributeMenu();
+
+    UFUNCTION() void OnStatsButtonClicked();
 
     /** 整局 Boss 限时（秒）；<=0 表示不启用（简易波次模式下不使用） */
     UPROPERTY(EditDefaultsOnly, Category="Y3|Rules")
@@ -250,8 +275,15 @@ private:
     FTimerHandle ResultDelayTimer;
     bool bResultShown = false;
 
-    // 三选一当前候选 + 辅助
-    TArray<FGameplayTag> CurrentChoiceTags;
+    // 三选一当前候选:技能卡(SkillTag 有效)或兜底升级卡(UpgradeRow 有效)
+    struct FY3ChoiceEntry
+    {
+        FGameplayTag SkillTag;
+        FName UpgradeRow;
+        bool IsValid() const { return SkillTag.IsValid() || !UpgradeRow.IsNone(); }
+    };
+    TArray<FY3ChoiceEntry> CurrentChoices;
+    TArray<FName> Y3_PickUpgradeRows(int32 Count) const;
     void SelectSkillCard(int32 Index);
     FGameplayTag Y3_FindFreeInputSlot() const;
     FGameplayTag Y3_FindFreePassiveSlot() const;

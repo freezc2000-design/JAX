@@ -35,6 +35,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Y3|Skill")
 	TObjectPtr<UDataTable> RegistryTable;
 
+	// 强化卡表：DT_UpgradeChoice（行类型 FY3UpgradeChoiceRow，属性/金币卡）。
+	// 三选一兜底卡也属技能库,图鉴第三数据源,与 DA 技能同列"已开发"。
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Y3|Skill")
+	TObjectPtr<UDataTable> UpgradeChoiceTable;
+
 	// 仅显示已开发的技能（开关）
 	UPROPERTY(BlueprintReadWrite, Category = "Y3|Skill")
 	bool bDevelopedOnly = false;

@@ -1,7 +1,10 @@
 #include "Y3/UI/Y3SkillAtlasWidget.h"
 #include "Y3/UI/Y3SkillRegistry.h"
 #include "Y3/UI/Y3FilterChip.h"
+#include "Y3/Y3UpgradeChoice.h"
+#include "Y3/Y3BattleGameMode.h"
 #include "Player/AuraPlayerController.h"
+#include "Kismet/GameplayStatics.h"
 #include "Components/TileView.h"
 #include "Components/EditableTextBox.h"
 #include "Components/TextBlock.h"
@@ -28,6 +31,7 @@ namespace
 		{ TEXT("allhero"), TEXT("全才英雄") },
 		{ TEXT("monster"), TEXT("怪物技能") },
 		{ TEXT("system"),  TEXT("系统/道具") },
+		{ TEXT("upgrade"), TEXT("强化卡") },
 	};
 
 	// 二级分组(组名 -> 标签)，多选 + AND/OR。来自 Tools/skill_filter_struct.json。
@@ -110,6 +114,30 @@ void UY3SkillAtlasWidget::BuildEntries()
 			AllEntries.Add(Entry);
 			++DevelopedCount;
 			DevelopedIcons.Add(I.AbilityIcon->GetFName());
+		}
+	}
+
+	// ---- 1.5) 强化卡：DT_UpgradeChoice（三选一兜底的属性/金币卡），与技能同列"已开发" ----
+	if (UpgradeChoiceTable)
+	{
+		TArray<FY3UpgradeChoiceRow*> URows;
+		UpgradeChoiceTable->GetAllRows<FY3UpgradeChoiceRow>(TEXT("Y3 Atlas Upgrade"), URows);
+		const TArray<FName> URowNames = UpgradeChoiceTable->GetRowNames();
+		for (int32 i = 0; i < URows.Num(); ++i)
+		{
+			if (!URows[i] || !URows[i]->Icon) continue;
+			UY3SkillEntryData* Entry = NewObject<UY3SkillEntryData>(this);
+			Entry->RowName = URowNames.IsValidIndex(i) ? URowNames[i] : NAME_None;
+			Entry->bIsUpgradeCard = true;
+			Entry->Row.Icon = TSoftObjectPtr<UTexture2D>(URows[i]->Icon.Get());
+			Entry->Row.DisplayName = URows[i]->DisplayName;
+			Entry->Row.Attr = TEXT("dev");          // 不参与英雄/怪物分类
+			Entry->Row.Cat = TEXT("upgrade");       // 一级 tab"强化卡"按此命中
+			Entry->Row.Tags.Add(TEXT("强化"));
+			Entry->Row.Tags.Add(URows[i]->AttributeTag.IsValid() ? TEXT("属性") : TEXT("金币"));
+			AllEntries.Add(Entry);
+			++DevelopedCount;
+			DevelopedIcons.Add(URows[i]->Icon->GetFName()); // 同图的注册表占位行去重
 		}
 	}
 
@@ -271,6 +299,10 @@ bool UY3SkillAtlasWidget::PassesPrim(const UY3SkillEntryData* E) const
 	{
 		return Cat == TEXT("system");
 	}
+	if (PrimFilter == TEXT("upgrade"))
+	{
+		return Cat == TEXT("upgrade");
+	}
 	return true;
 }
 
@@ -361,6 +393,21 @@ void UY3SkillAtlasWidget::OnItemClicked(UObject* Item)
 	if (!Entry->IsDeveloped())
 	{
 		UE_LOG(LogTemp, Log, TEXT("[Y3Atlas] %s 未开发，暂无可测试技能"), *Entry->Row.DisplayName);
+		return;
+	}
+
+	// 强化卡 → 战斗内点击即应用一次（测试用,与技能点击授予对等）
+	if (Entry->bIsUpgradeCard)
+	{
+		if (AY3BattleGameMode* GM = Cast<AY3BattleGameMode>(UGameplayStatics::GetGameMode(this)))
+		{
+			GM->ApplyUpgradeChoice(Entry->RowName);
+			UE_LOG(LogTemp, Log, TEXT("[Y3Atlas] 测试强化卡 %s"), *Entry->Row.DisplayName);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("[Y3Atlas] %s 是强化卡,战斗内点击可测试应用"), *Entry->Row.DisplayName);
+		}
 		return;
 	}
 

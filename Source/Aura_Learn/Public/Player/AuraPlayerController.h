@@ -181,5 +181,9 @@ public:
 	// Y3AccountReward XP Gold → 手动模拟一笔结算奖励
 	UFUNCTION(Exec)
 	void Y3AccountReward(int32 AccountXPReward, int32 GoldReward);
+
+	// Y3Stats → 开/关角色属性详情面板(战斗内)
+	UFUNCTION(Exec)
+	void Y3Stats();
 private:
 };

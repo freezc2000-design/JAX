@@ -57,7 +57,11 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Y3|Skill")
 	FY3SkillRegistryRow Row;
 
-	// 已开发 = 绑定了 GA 技能类
+	// 强化卡(来自 DT_UpgradeChoice 的属性/金币卡):无 GA 类但同样算"已开发"内容
+	UPROPERTY(BlueprintReadOnly, Category = "Y3|Skill")
+	bool bIsUpgradeCard = false;
+
+	// 已开发 = 绑定了 GA 技能类,或是强化卡
 	UFUNCTION(BlueprintPure, Category = "Y3|Skill")
-	bool IsDeveloped() const { return !Row.Ability.IsNull(); }
+	bool IsDeveloped() const { return !Row.Ability.IsNull() || bIsUpgradeCard; }
 };

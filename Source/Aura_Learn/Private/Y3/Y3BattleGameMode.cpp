@@ -26,6 +26,9 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "Y3/UI/Y3SkillRegistry.h"
 #include "Y3/Y3SkillTuning.h"
+#include "Y3/Y3UpgradeChoice.h"
+#include "AbilitySystem/Data/AttributeInfo.h"
+#include "UI/WidgetController/AttributeMenuWgtController.h"
 #include "Y3/Account/Y3AccountSubsystem.h"
 #include "Framework/Application/SlateApplication.h"
 
@@ -69,6 +72,12 @@ void AY3BattleGameMode::BeginPlay()
         if (StageHUDInstance)
         {
             StageHUDInstance->AddToViewport(100);
+            // HUD"属性"按钮 → 开关角色属性面板
+            if (StageHUDInstance->WidgetTree)
+            {
+                if (UButton* B = Cast<UButton>(StageHUDInstance->WidgetTree->FindWidget(TEXT("Btn_Stats"))))
+                    B->OnClicked.AddDynamic(this, &AY3BattleGameMode::OnStatsButtonClicked);
+            }
         }
     }
 
@@ -888,21 +897,25 @@ void AY3BattleGameMode::ShowSkillChoice()
         }
         Pool.Add(I);
     }
-    if (Pool.Num() == 0)
-    {
-        UE_LOG(LogTemp, Log, TEXT("[Y3 Skill] 没有可提供的新技能(都拥有了)"));
-        return;
-    }
     // 洗牌
     for (int32 i = Pool.Num() - 1; i > 0; --i) { const int32 j = FMath::RandRange(0, i); Pool.Swap(i, j); }
-    const int32 N = FMath::Min(3, Pool.Num());
+    const int32 SkillN = FMath::Min(3, Pool.Num());
+
+    // 技能池不足3张 → 用兜底升级卡(基础属性/金币)补位;技能全满级后三张全是兜底卡。
+    const TArray<FName> UpgradeRows = Y3_PickUpgradeRows(3 - SkillN);
+    const int32 N = SkillN + UpgradeRows.Num();
+    if (N == 0)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[Y3 Skill] 技能全满级且未配置 UpgradeChoiceTable,无可提供选项"));
+        return;
+    }
 
     SkillChoiceInstance = CreateWidget<UUserWidget>(GetWorld(), SkillChoiceClass);
     if (!SkillChoiceInstance) return;
     SkillChoiceInstance->AddToViewport(1100);
     SkillChoiceInstance->SetIsFocusable(true);
 
-    CurrentChoiceTags.Reset();
+    CurrentChoices.Reset();
     UWidgetTree* WT = SkillChoiceInstance->WidgetTree;
     const TCHAR* BgN[3]   = { TEXT("Bg1"), TEXT("Bg2"), TEXT("Bg3") };
     const TCHAR* IconN[3] = { TEXT("Icon1"), TEXT("Icon2"), TEXT("Icon3") };
@@ -911,10 +924,11 @@ void AY3BattleGameMode::ShowSkillChoice()
 
     for (int32 i = 0; i < 3; ++i)
     {
-        if (i < N)
+        if (i < SkillN)
         {
+            // —— 技能卡 ——
             const FAuraAbilityInfo& I = Pool[i];
-            CurrentChoiceTags.Add(I.AbilityTag);
+            CurrentChoices.Add({ I.AbilityTag, NAME_None });
             if (WT)
             {
                 // 两层普通 Image 合成与技能栏一致的彩色技能图标：
@@ -933,9 +947,31 @@ void AY3BattleGameMode::ShowSkillChoice()
                 }
             }
         }
+        else if (i < N)
+        {
+            // —— 兜底升级卡(属性/金币) ——
+            const FName RowName = UpgradeRows[i - SkillN];
+            CurrentChoices.Add({ FGameplayTag(), RowName });
+            const FY3UpgradeChoiceRow* Row = UpgradeChoiceTable
+                ? UpgradeChoiceTable->FindRow<FY3UpgradeChoiceRow>(RowName, TEXT("Y3 Upgrade Card"))
+                : nullptr;
+            if (WT && Row)
+            {
+                // 兜底卡没有彩色球底,折叠 Bg 只显示方形图标。
+                if (UWidget* Bg = WT->FindWidget(BgN[i])) Bg->SetVisibility(ESlateVisibility::Collapsed);
+                if (UImage* Ic = Cast<UImage>(WT->FindWidget(IconN[i])))
+                {
+                    if (Row->Icon) Ic->SetBrushFromTexture(Row->Icon);
+                }
+                if (UTextBlock* Nm = Cast<UTextBlock>(WT->FindWidget(NameN[i])))
+                {
+                    Nm->SetText(FText::FromString(Row->DisplayName));
+                }
+            }
+        }
         else
         {
-            CurrentChoiceTags.Add(FGameplayTag());
+            CurrentChoices.Add({ FGameplayTag(), NAME_None });
             if (WT)
             {
                 // 候选不足3个时,隐藏多余的空卡(否则残留白方块)。
@@ -971,11 +1007,16 @@ void AY3BattleGameMode::OnSkillCard3Clicked() { SelectSkillCard(2); }
 void AY3BattleGameMode::SelectSkillCard(int32 Index)
 {
     UGameplayStatics::SetGamePaused(this, false);
-    if (CurrentChoiceTags.IsValidIndex(Index) && CurrentChoiceTags[Index].IsValid())
-        Y3_GiveAndEquip(CurrentChoiceTags[Index]);
+    if (CurrentChoices.IsValidIndex(Index) && CurrentChoices[Index].IsValid())
+    {
+        if (CurrentChoices[Index].SkillTag.IsValid())
+            Y3_GiveAndEquip(CurrentChoices[Index].SkillTag);
+        else
+            ApplyUpgradeChoice(CurrentChoices[Index].UpgradeRow);
+    }
 
     if (SkillChoiceInstance) { SkillChoiceInstance->RemoveFromParent(); SkillChoiceInstance = nullptr; }
-    CurrentChoiceTags.Reset();
+    CurrentChoices.Reset();
 
     if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
     {
@@ -988,4 +1029,112 @@ void AY3BattleGameMode::SelectSkillCard(int32 Index)
         // 否则数字键放技能失效(鼠标点击移动仍可,走视口指针)。
         FSlateApplication::Get().SetAllUserFocusToGameViewport();
     }
+}
+
+TArray<FName> AY3BattleGameMode::Y3_PickUpgradeRows(int32 Count) const
+{
+    TArray<FName> Result;
+    if (Count <= 0 || !UpgradeChoiceTable) return Result;
+
+    // 加权不放回抽样
+    struct FCandidate { FName Row; int32 Weight; };
+    TArray<FCandidate> Candidates;
+    for (const auto& Pair : UpgradeChoiceTable->GetRowMap())
+    {
+        const FY3UpgradeChoiceRow* Row = reinterpret_cast<const FY3UpgradeChoiceRow*>(Pair.Value);
+        if (Row && Row->Weight > 0) Candidates.Add({ Pair.Key, Row->Weight });
+    }
+    while (Result.Num() < Count && Candidates.Num() > 0)
+    {
+        int32 Total = 0;
+        for (const FCandidate& C : Candidates) Total += C.Weight;
+        int32 Roll = FMath::RandRange(1, Total);
+        for (int32 i = 0; i < Candidates.Num(); ++i)
+        {
+            Roll -= Candidates[i].Weight;
+            if (Roll <= 0)
+            {
+                Result.Add(Candidates[i].Row);
+                Candidates.RemoveAtSwap(i);
+                break;
+            }
+        }
+    }
+    return Result;
+}
+
+void AY3BattleGameMode::ApplyUpgradeChoice(FName RowName)
+{
+    if (!UpgradeChoiceTable || RowName.IsNone()) return;
+    const FY3UpgradeChoiceRow* Row = UpgradeChoiceTable->FindRow<FY3UpgradeChoiceRow>(RowName, TEXT("Y3 Upgrade Apply"));
+    if (!Row) return;
+
+    // 属性卡:经 DA_AttributeInfo 把 tag 解析成 FGameplayAttribute,直接加 BaseValue(本局内永久)。
+    // 主属性提升会经由派生 GE 自动联动副属性(MaxHealth 等)。
+    if (Row->AttributeTag.IsValid() && Row->Magnitude != 0.f)
+    {
+        UAuraAbilitySystemComponent* ASC = Y3_GetPlayerASC(this);
+        if (ASC && AttributeInfoSource)
+        {
+            const FAuraAttributeInfo AI = AttributeInfoSource->FindAttributeInfoForTag(Row->AttributeTag, true);
+            if (AI.AttributeGetter.IsValid())
+            {
+                ASC->ApplyModToAttribute(AI.AttributeGetter, EGameplayModOp::Additive, Row->Magnitude);
+                UE_LOG(LogTemp, Log, TEXT("[Y3 Upgrade] %s: %s +%.0f"),
+                    *RowName.ToString(), *Row->AttributeTag.ToString(), Row->Magnitude);
+            }
+        }
+        else if (!AttributeInfoSource)
+        {
+            UE_LOG(LogTemp, Error, TEXT("[Y3 Upgrade] AttributeInfoSource 未设置,属性卡 %s 无法应用"), *RowName.ToString());
+        }
+    }
+
+    // 货币卡:直接进账号金币并落盘。
+    if (Row->Gold > 0)
+    {
+        if (UGameInstance* GI = GetGameInstance())
+        {
+            if (UY3AccountSubsystem* Account = GI->GetSubsystem<UY3AccountSubsystem>())
+            {
+                Account->AddGold(Row->Gold);
+                Account->SaveCurrentAccount();
+                UE_LOG(LogTemp, Log, TEXT("[Y3 Upgrade] %s: 金币 +%d"), *RowName.ToString(), Row->Gold);
+            }
+        }
+    }
+}
+
+void AY3BattleGameMode::Y3ToggleAttributeMenu()
+{
+    if (!AttributeMenuInstance)
+    {
+        if (!AttributeMenuClass)
+        {
+            UE_LOG(LogTemp, Error, TEXT("[Y3 HUD] AttributeMenuClass 未设置!"));
+            return;
+        }
+        // WBP_AttributeMenu 在 Construct 时自取 AttributeMenuWgtController 并分发给子行,这里只管创建。
+        AttributeMenuInstance = CreateWidget<UUserWidget>(GetWorld(), AttributeMenuClass);
+        if (!AttributeMenuInstance) return;
+        AttributeMenuInstance->AddToViewport(1050);
+        // 旧链路里由 Overlay 菜单触发初始广播,瘦身后没人调 → 这里补一次,否则面板全是设计器占位值。
+        if (UAttributeMenuWgtController* Ctrl = UAuraAbilitySystemBPLibary::GetAttributeMenuWgtController(this))
+            Ctrl->BroadcastInitialValues();
+        return;
+    }
+    // 面板自带的关闭按钮走 SetVisibility 隐藏自身,这里统一用可见性开关。
+    const bool bShown = AttributeMenuInstance->IsVisible();
+    AttributeMenuInstance->SetVisibility(bShown ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+    if (!bShown)
+    {
+        // 重新打开时刷一遍初始值(属性变化平时有委托实时推,这里兜底)
+        if (UAttributeMenuWgtController* Ctrl = UAuraAbilitySystemBPLibary::GetAttributeMenuWgtController(this))
+            Ctrl->BroadcastInitialValues();
+    }
+}
+
+void AY3BattleGameMode::OnStatsButtonClicked()
+{
+    Y3ToggleAttributeMenu();
 }

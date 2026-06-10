@@ -34,6 +34,8 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Y3/Account/Y3AccountSubsystem.h"
+#include "Y3/Y3BattleGameMode.h"
+#include "Kismet/GameplayStatics.h"
 
 AAuraPlayerController::AAuraPlayerController():
 	Spline(CreateDefaultSubobject<USplineComponent>("Spline"))
@@ -844,5 +846,13 @@ void AAuraPlayerController::Y3AccountReward(int32 AccountXPReward, int32 GoldRew
 	{
 		Account->AddRunReward(AccountXPReward, GoldReward);
 		Account->PrintCurrentAccount();
+	}
+}
+
+void AAuraPlayerController::Y3Stats()
+{
+	if (AY3BattleGameMode* GM = Cast<AY3BattleGameMode>(UGameplayStatics::GetGameMode(this)))
+	{
+		GM->Y3ToggleAttributeMenu();
 	}
 }
