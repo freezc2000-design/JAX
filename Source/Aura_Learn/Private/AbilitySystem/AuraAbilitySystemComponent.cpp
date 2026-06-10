@@ -11,7 +11,7 @@
 
 void UAuraAbilitySystemComponent::AbilityActorInfoSeted()
 {
-	AbilityDescriptions = LoadObject<UAbilitieDescriptions>(nullptr, TEXT("/Game/Blueprints/AbilitySystem/Data/DA_AbiilityDescriptionInfos"));
+	AbilityDescriptions = LoadObject<UAbilitieDescriptions>(nullptr, TEXT("/Game/Gameplay/SharedData/DA_AbiilityDescriptionInfos"));
 
     OnGameplayEffectAppliedDelegateToSelf.AddUObject(this, &UAuraAbilitySystemComponent::ClinetEffectApplied);
 
