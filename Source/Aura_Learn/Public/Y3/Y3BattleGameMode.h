@@ -68,6 +68,10 @@ public:
     UPROPERTY(BlueprintReadOnly, Category="Y3|SkillChoice")
     TObjectPtr<class UUserWidget> SkillChoiceInstance;
 
+    /** 技能数值调优表(行类型 FY3SkillTuningRow;第一版含库存,后续加弹数/范围等)。在 BP_BattleGameMode 里设。 */
+    UPROPERTY(EditDefaultsOnly, Category="Y3|SkillChoice")
+    TObjectPtr<class UDataTable> SkillTuningTable;
+
     /** 升级时弹三选一(由 AuraCharacter::LevelUp 调用) */
     UFUNCTION(BlueprintCallable, Category="Y3|SkillChoice")
     void ShowSkillChoice();
@@ -75,6 +79,9 @@ public:
     /** 给玩家一个技能并自动装到下一个空快捷栏槽(InputTag.1~6) */
     UFUNCTION(BlueprintCallable, Category="Y3|SkillChoice")
     void Y3_GiveAndEquip(FGameplayTag AbilityTag);
+
+    /** 读技能库存(可升级份数);表未配该技能则返回 0(抽到即定级、不升级) */
+    int32 Y3_GetSkillStock(const FGameplayTag& AbilityTag) const;
 
     UFUNCTION() void OnSkillCard1Clicked();
     UFUNCTION() void OnSkillCard2Clicked();
@@ -130,6 +137,18 @@ public:
     /** 玩家死亡延迟显示结果（秒） */
     UPROPERTY(EditDefaultsOnly, Category="Y3|Rules")
     float ResultShowDelay = 2.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Y3|AccountReward")
+    int32 LossAccountXPReward = 100;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Y3|AccountReward")
+    int32 LossGoldReward = 100;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Y3|AccountReward")
+    int32 WinAccountXPReward = 2000;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Y3|AccountReward")
+    int32 WinGoldReward = 2000;
 
     UFUNCTION(BlueprintCallable, Category="Y3")
     void ShowResult(bool bWin, int32 StageReached);
@@ -235,6 +254,7 @@ private:
     TArray<FGameplayTag> CurrentChoiceTags;
     void SelectSkillCard(int32 Index);
     FGameplayTag Y3_FindFreeInputSlot() const;
+    FGameplayTag Y3_FindFreePassiveSlot() const;
 
     // 简易波次计时器
     FTimerHandle NormalWaveTimer;

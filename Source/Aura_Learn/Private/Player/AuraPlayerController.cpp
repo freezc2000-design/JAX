@@ -21,6 +21,19 @@
 #include "Interaction/CombatInterface.h"
 #include "Interaction/HighlightInterface.h"
 #include "UI/Widget/DamageTextComponent.h"
+#include "Abilities/GameplayAbility.h"
+#include "AbilitySystem/AuraAbilitySystemBPLibary.h"
+#include "AbilitySystem/Data/AbilityInfo.h"
+#include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/Button.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Components/TextBlock.h"
+#include "Components/VerticalBox.h"
+#include "Components/VerticalBoxSlot.h"
+#include "Y3/Account/Y3AccountSubsystem.h"
 
 AAuraPlayerController::AAuraPlayerController():
 	Spline(CreateDefaultSubobject<USplineComponent>("Spline"))
@@ -92,6 +105,16 @@ void AAuraPlayerController::BeginPlay()
 	InputModeData.SetHideCursorDuringCapture(false);//当窗口捕捉到光标，不隐藏光标
 	SetInputMode(InputModeData);
 
+	if (GetWorld())
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			Y3AccountUiRefreshTimer,
+			this,
+			&AAuraPlayerController::Y3RefreshAccountWidgets,
+			0.5f,
+			true,
+			0.5f);
+	}
 }
 
 void AAuraPlayerController::SetupInputComponent()
@@ -117,6 +140,177 @@ void AAuraPlayerController::PlayerTick(float DeltaTime)
 	AutoRun();
 
 	UpdateMagicCircleLocation();//依赖 CursorTrace
+}
+
+void AAuraPlayerController::Y3RefreshAccountWidgets()
+{
+	TArray<UUserWidget*> Widgets;
+	UWidgetBlueprintLibrary::GetAllWidgetsOfClass(this, Widgets, UUserWidget::StaticClass(), false);
+
+	for (UUserWidget* Widget : Widgets)
+	{
+		if (!Widget)
+		{
+			continue;
+		}
+
+		const FString ClassName = Widget->GetClass()->GetName();
+		if (ClassName.Contains(TEXT("WBP_MainMenu")))
+		{
+			Y3InjectMainMenuAccountPanel(Widget);
+		}
+		else if (ClassName.Contains(TEXT("WBP_HeroSelection")))
+		{
+			Y3UpdateSelectionAccountInfo(Widget);
+		}
+	}
+}
+
+void AAuraPlayerController::Y3InjectMainMenuAccountPanel(UUserWidget* Widget)
+{
+	if (!Widget || !Widget->WidgetTree)
+	{
+		return;
+	}
+
+	if (UTextBlock* ExistingText = Cast<UTextBlock>(Widget->WidgetTree->FindWidget(TEXT("Y3_TxtAccountInfo"))))
+	{
+		ExistingText->SetText(FText::FromString(Y3BuildAccountSummaryText(true)));
+		return;
+	}
+
+	UOverlay* RootOverlay = Cast<UOverlay>(Widget->WidgetTree->FindWidget(TEXT("RootOverlay")));
+	if (!RootOverlay)
+	{
+		RootOverlay = Cast<UOverlay>(Widget->WidgetTree->RootWidget);
+	}
+	if (!RootOverlay)
+	{
+		return;
+	}
+
+	UVerticalBox* Panel = Widget->WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Y3_AccountPanel"));
+	UTextBlock* AccountText = Widget->WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Y3_TxtAccountInfo"));
+	UButton* NewButton = Widget->WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("Y3_BtnNewAccount"));
+	UTextBlock* NewButtonText = Widget->WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Y3_TxtNewAccount"));
+	UButton* SwitchButton = Widget->WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("Y3_BtnSwitchAccount"));
+	UTextBlock* SwitchButtonText = Widget->WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Y3_TxtSwitchAccount"));
+
+	if (!Panel || !AccountText || !NewButton || !NewButtonText || !SwitchButton || !SwitchButtonText)
+	{
+		return;
+	}
+
+	AccountText->SetText(FText::FromString(Y3BuildAccountSummaryText(true)));
+	AccountText->SetColorAndOpacity(FSlateColor(FLinearColor(0.85f, 0.95f, 1.f, 1.f)));
+
+	NewButtonText->SetText(FText::FromString(TEXT("新账号")));
+	SwitchButtonText->SetText(FText::FromString(TEXT("切换账号")));
+	NewButton->AddChild(NewButtonText);
+	SwitchButton->AddChild(SwitchButtonText);
+	NewButton->OnClicked.AddDynamic(this, &AAuraPlayerController::Y3CreateNewAccountFromMenu);
+	SwitchButton->OnClicked.AddDynamic(this, &AAuraPlayerController::Y3CycleLocalAccountFromMenu);
+
+	if (UVerticalBoxSlot* TextSlot = Panel->AddChildToVerticalBox(AccountText))
+	{
+		TextSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 8.f));
+	}
+	if (UVerticalBoxSlot* NewSlot = Panel->AddChildToVerticalBox(NewButton))
+	{
+		NewSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 6.f));
+	}
+	Panel->AddChildToVerticalBox(SwitchButton);
+
+	if (UOverlaySlot* OverlaySlot = RootOverlay->AddChildToOverlay(Panel))
+	{
+		OverlaySlot->SetHorizontalAlignment(HAlign_Right);
+		OverlaySlot->SetVerticalAlignment(VAlign_Top);
+		OverlaySlot->SetPadding(FMargin(0.f, 32.f, 40.f, 0.f));
+	}
+}
+
+void AAuraPlayerController::Y3UpdateSelectionAccountInfo(UUserWidget* Widget)
+{
+	if (!Widget || !Widget->WidgetTree)
+	{
+		return;
+	}
+
+	if (UTextBlock* StatusText = Cast<UTextBlock>(Widget->WidgetTree->FindWidget(TEXT("StatusText"))))
+	{
+		StatusText->SetText(FText::FromString(Y3BuildAccountSummaryText(false)));
+	}
+}
+
+FString AAuraPlayerController::Y3BuildAccountSummaryText(bool bIncludeAccountId) const
+{
+	UY3AccountSubsystem* Account = GetGameInstance() ? GetGameInstance()->GetSubsystem<UY3AccountSubsystem>() : nullptr;
+	if (!Account)
+	{
+		return TEXT("账号未加载");
+	}
+
+	UY3AccountSaveGame* Save = Account->GetCurrentAccount();
+	if (!Save)
+	{
+		Account->LoadLastAccount();
+		Save = Account->GetCurrentAccount();
+	}
+	if (!Save)
+	{
+		return TEXT("账号未加载");
+	}
+
+	const FString Progress = FString::Printf(
+		TEXT("账号等级 Lv.%d  经验 %d/%d  金币 %d"),
+		Save->AccountLevel,
+		Save->AccountXP,
+		Account->GetXPRequiredForLevel(Save->AccountLevel),
+		Save->Gold);
+
+	return bIncludeAccountId
+		? FString::Printf(TEXT("当前账号\n%s\n%s"), *Account->GetCurrentAccountDisplayLabel(), *Progress)
+		: FString::Printf(TEXT("%s\n%s"), *Account->GetCurrentAccountDisplayLabel(), *Progress);
+}
+
+void AAuraPlayerController::Y3CreateNewAccountFromMenu()
+{
+	if (UY3AccountSubsystem* Account = GetGameInstance()->GetSubsystem<UY3AccountSubsystem>())
+	{
+		Account->CreateNewLocalAccount(TEXT(""));
+		Account->PrintCurrentAccount();
+		Y3RefreshAccountWidgets();
+	}
+}
+
+void AAuraPlayerController::Y3CycleLocalAccountFromMenu()
+{
+	UY3AccountSubsystem* Account = GetGameInstance() ? GetGameInstance()->GetSubsystem<UY3AccountSubsystem>() : nullptr;
+	if (!Account)
+	{
+		return;
+	}
+
+	const TArray<FString> Ids = Account->GetKnownLocalAccountIds();
+	if (Ids.Num() <= 0)
+	{
+		Account->CreateNewLocalAccount(TEXT(""));
+	}
+	else if (Ids.Num() == 1)
+	{
+		Account->LoginLocalAccount(Ids[0]);
+	}
+	else
+	{
+		const UY3AccountSaveGame* Current = Account->GetCurrentAccount();
+		const FString CurrentId = Current ? Current->Y3AccountId : FString();
+		int32 CurrentIndex = Ids.IndexOfByKey(CurrentId);
+		const int32 NextIndex = CurrentIndex == INDEX_NONE ? 0 : (CurrentIndex + 1) % Ids.Num();
+		Account->LoginLocalAccount(Ids[NextIndex]);
+	}
+
+	Account->PrintCurrentAccount();
+	Y3RefreshAccountWidgets();
 }
 
 void AAuraPlayerController::Move(const FInputActionValue& InputActionValue)
@@ -335,5 +529,320 @@ void AAuraPlayerController::UnHighlightActor(AActor* InActor)
 	if (IsValid(InActor) && InActor->Implements<UHighlightInterface>())
 	{
 		IHighlightInterface::Execute_UnHightlightActor(InActor);
+	}
+}
+
+// ===================== Y3 测试模式：控制台快速测试技能 =====================
+
+namespace
+{
+FString Y3_NormalizeAbilityClassPath(const FString& AbilityPath)
+{
+	FString Path = AbilityPath.TrimStartAndEnd();
+	if (Path.IsEmpty() || Path.Contains(TEXT(".")))
+	{
+		return Path;
+	}
+
+	FString Left;
+	FString Name;
+	if (Path.Split(TEXT("/"), &Left, &Name, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+	{
+		Path = Path + TEXT(".") + Name + TEXT("_C");
+	}
+	return Path;
+}
+
+UClass* Y3_LoadAbilityClass(const FString& AbilityPath)
+{
+	const FString Path = Y3_NormalizeAbilityClassPath(AbilityPath);
+	UClass* Cls = LoadObject<UClass>(nullptr, *Path);
+	if (!Cls || !Cls->IsChildOf(UGameplayAbility::StaticClass()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 加载技能失败: %s"), *Path);
+		return nullptr;
+	}
+	return Cls;
+}
+
+FGameplayTag Y3_GetAbilityTagFromClass(TSubclassOf<UGameplayAbility> AbilityClass)
+{
+	const UGameplayAbility* AbilityCDO = AbilityClass ? AbilityClass->GetDefaultObject<UGameplayAbility>() : nullptr;
+	if (!AbilityCDO)
+	{
+		return FGameplayTag();
+	}
+
+	for (const FGameplayTag& Tag : AbilityCDO->AbilityTags)
+	{
+		if (Tag.MatchesTag(FAuraGmaeplayTags::GetInstance().Abilities))
+		{
+			return Tag;
+		}
+	}
+	return FGameplayTag();
+}
+
+FGameplayTag Y3_RequestGameplayTag(const FString& TagName)
+{
+	FString CleanName = TagName.TrimStartAndEnd();
+	if (CleanName.StartsWith(TEXT("(TagName=\"")) && CleanName.EndsWith(TEXT("\")")))
+	{
+		CleanName = CleanName.Mid(10, CleanName.Len() - 12);
+	}
+	return FGameplayTag::RequestGameplayTag(FName(*CleanName), false);
+}
+}
+
+void AAuraPlayerController::Y3TestGive(const FString& AbilityPath)
+{
+	UAuraAbilitySystemComponent* ASC = GetAuraASC();
+	if (!ASC) { UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 无 ASC")); return; }
+
+	if (UClass* Cls = Y3_LoadAbilityClass(AbilityPath))
+	{
+		GiveTestAbility(Cls, 1);
+	}
+}
+
+void AAuraPlayerController::Y3TestEquip(const FString& AbilityPath, const FString& SlotTagName)
+{
+	UAuraAbilitySystemComponent* ASC = GetAuraASC();
+	if (!ASC) { UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 无 ASC")); return; }
+
+	UClass* AbilityClass = Y3_LoadAbilityClass(AbilityPath);
+	if (!AbilityClass)
+	{
+		return;
+	}
+
+	const FGameplayTag AbilityTag = Y3_GetAbilityTagFromClass(AbilityClass);
+	if (!AbilityTag.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 技能没有 Abilities.* 标签: %s"), *AbilityClass->GetName());
+		return;
+	}
+
+	const FGameplayTag SlotTag = Y3_RequestGameplayTag(SlotTagName);
+	if (!SlotTag.IsValid() || !SlotTag.MatchesTag(FAuraGmaeplayTags::GetInstance().InputTag))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 无效槽位标签: %s"), *SlotTagName);
+		return;
+	}
+
+	const FAuraGmaeplayTags& T = FAuraGmaeplayTags::GetInstance();
+	if (FGameplayAbilitySpec* ExistingSpec = ASC->GetSpecFromAbilityTag(AbilityTag))
+	{
+		const FGameplayTag CurrentStatus = ASC->GetStatusFromSpec(*ExistingSpec);
+		if (!CurrentStatus.MatchesTagExact(T.Abilities_Status_Unlocked) &&
+			!CurrentStatus.MatchesTagExact(T.Abilities_Status_Equipped))
+		{
+			if (CurrentStatus.IsValid())
+			{
+				ExistingSpec->DynamicAbilityTags.RemoveTag(CurrentStatus);
+			}
+			ExistingSpec->DynamicAbilityTags.AddTag(T.Abilities_Status_Unlocked);
+			ASC->MarkAbilitySpecDirty(*ExistingSpec);
+		}
+	}
+	else
+	{
+		FGameplayAbilitySpec Spec(AbilityClass, 1);
+		Spec.DynamicAbilityTags.AddTag(T.Abilities_Status_Unlocked);
+		ASC->GiveAbility(Spec);
+	}
+
+	ASC->Y3_EquipAbilityToSlot(AbilityTag, SlotTag);
+	UE_LOG(LogTemp, Log, TEXT("[Y3Test] 装备 %s -> %s"), *AbilityTag.ToString(), *SlotTag.ToString());
+}
+
+void AAuraPlayerController::Y3TestActivateSlot(const FString& SlotTagName)
+{
+	UAuraAbilitySystemComponent* ASC = GetAuraASC();
+	if (!ASC) { UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 无 ASC")); return; }
+
+	const FGameplayTag SlotTag = Y3_RequestGameplayTag(SlotTagName);
+	if (!SlotTag.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 无效槽位标签: %s"), *SlotTagName);
+		return;
+	}
+
+	FGameplayAbilitySpec* Spec = ASC->GetAbilitySpecWithSlot(SlotTag);
+	if (!Spec)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 槽位无技能: %s"), *SlotTag.ToString());
+		return;
+	}
+
+	const FGameplayTag AbilityTag = UAuraAbilitySystemComponent::GetAbilityTagFromSpec(*Spec);
+	const bool bOk = ASC->TryActivateAbility(Spec->Handle);
+	UE_LOG(LogTemp, Log, TEXT("[Y3Test] 激活槽 %s -> %s (%s)"),
+		*SlotTag.ToString(),
+		bOk ? TEXT("成功") : TEXT("失败"),
+		*AbilityTag.ToString());
+}
+
+void AAuraPlayerController::Y3DebugAbilities()
+{
+	UAuraAbilitySystemComponent* ASC = GetAuraASC();
+	if (!ASC) { UE_LOG(LogTemp, Warning, TEXT("[Y3Debug] 无 ASC")); return; }
+
+	int32 Index = 0;
+	for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+	{
+		const FGameplayTag AbilityTag = UAuraAbilitySystemComponent::GetAbilityTagFromSpec(Spec);
+		const FGameplayTag InputTag = UAuraAbilitySystemComponent::GetInputTagFromSpec(Spec);
+		const FGameplayTag StatusTag = UAuraAbilitySystemComponent::GetStatusFromSpec(Spec);
+		UE_LOG(LogTemp, Log, TEXT("[Y3Debug] #%d Ability=%s Class=%s Level=%d Slot=%s Status=%s Active=%s DynamicTags=%s"),
+			Index++,
+			*AbilityTag.ToString(),
+			Spec.Ability ? *Spec.Ability->GetName() : TEXT("None"),
+			Spec.Level,
+			*InputTag.ToString(),
+			*StatusTag.ToString(),
+			Spec.IsActive() ? TEXT("true") : TEXT("false"),
+			*Spec.DynamicAbilityTags.ToString());
+	}
+}
+
+void AAuraPlayerController::GiveTestAbility(TSubclassOf<UGameplayAbility> AbilityClass, int32 Level)
+{
+	UAuraAbilitySystemComponent* ASC = GetAuraASC();
+	if (!ASC || !AbilityClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Y3Test] GiveTestAbility: 无 ASC 或空技能类"));
+		return;
+	}
+
+	const int32 Lvl = FMath::Max(1, Level);
+	const FAuraGmaeplayTags& T = FAuraGmaeplayTags::GetInstance();
+	FGameplayAbilitySpec Spec(AbilityClass, Lvl);
+	Spec.DynamicAbilityTags.AddTag(T.Abilities_Status_Unlocked);
+	const FGameplayAbilitySpecHandle H = ASC->GiveAbility(Spec);
+	const bool bOk = ASC->TryActivateAbility(H);
+	UE_LOG(LogTemp, Log, TEXT("[Y3Test] 授予并激活 %s (Lv%d) -> %s"),
+		*AbilityClass->GetName(), Lvl, bOk ? TEXT("成功") : TEXT("失败"));
+}
+
+void AAuraPlayerController::Y3Atlas()
+{
+	UClass* WidgetClass = LoadObject<UClass>(nullptr, TEXT("/Game/UI/Menus/WBP_SkillAtlas.WBP_SkillAtlas_C"));
+	if (!WidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Y3Atlas] 找不到 /Game/UI/Menus/WBP_SkillAtlas"));
+		return;
+	}
+	if (UUserWidget* W = CreateWidget<UUserWidget>(this, WidgetClass))
+	{
+		W->AddToViewport(500);
+		bShowMouseCursor = true;
+		FInputModeGameAndUI Mode;
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		Mode.SetHideCursorDuringCapture(false);
+		SetInputMode(Mode);
+		UE_LOG(LogTemp, Log, TEXT("[Y3Atlas] 打开技能图鉴"));
+	}
+}
+
+void AAuraPlayerController::Y3TestGiveAll()
+{
+	UAuraAbilitySystemComponent* ASC = GetAuraASC();
+	if (!ASC) { UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 无 ASC")); return; }
+
+	UAbilityInfo* Info = UAuraAbilitySystemBPLibary::GetAbilityInfo(this);
+	if (!Info) { UE_LOG(LogTemp, Warning, TEXT("[Y3Test] 无 AbilityInfo")); return; }
+
+	const FAuraGmaeplayTags& T = FAuraGmaeplayTags::GetInstance();
+	int32 Count = 0;
+	for (const FAuraAbilityInfo& I : Info->AbilityInfomation)
+	{
+		if (!I.Ability) continue;
+		FGameplayAbilitySpec Spec(I.Ability, 1);
+		Spec.DynamicAbilityTags.AddTag(T.Abilities_Status_Unlocked);
+		ASC->GiveAbility(Spec);
+		++Count;
+	}
+	UE_LOG(LogTemp, Log, TEXT("[Y3Test] 授予技能库全部 %d 个"), Count);
+}
+
+void AAuraPlayerController::Y3TestClear()
+{
+	UAuraAbilitySystemComponent* ASC = GetAuraASC();
+	if (!ASC) return;
+
+	TArray<FGameplayAbilitySpecHandle> Handles;
+	for (const FGameplayAbilitySpec& S : ASC->GetActivatableAbilities())
+	{
+		Handles.Add(S.Handle);
+	}
+	for (const FGameplayAbilitySpecHandle& H : Handles)
+	{
+		ASC->ClearAbility(H);
+	}
+	UE_LOG(LogTemp, Log, TEXT("[Y3Test] 清空 %d 个技能"), Handles.Num());
+}
+
+void AAuraPlayerController::Y3Account()
+{
+	if (UY3AccountSubsystem* Account = GetGameInstance()->GetSubsystem<UY3AccountSubsystem>())
+	{
+		Account->LoadLastAccount();
+		Account->PrintCurrentAccount();
+	}
+}
+
+void AAuraPlayerController::Y3AccountNew(const FString& AccountId)
+{
+	if (UY3AccountSubsystem* Account = GetGameInstance()->GetSubsystem<UY3AccountSubsystem>())
+	{
+		Account->CreateNewLocalAccount(AccountId);
+		Account->PrintCurrentAccount();
+	}
+}
+
+void AAuraPlayerController::Y3AccountLogin(const FString& AccountId)
+{
+	if (UY3AccountSubsystem* Account = GetGameInstance()->GetSubsystem<UY3AccountSubsystem>())
+	{
+		if (!Account->LoginLocalAccount(AccountId))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Y3Account] 登录失败,未找到账号: %s"), *AccountId);
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
+					FString::Printf(TEXT("登录失败: %s"), *AccountId));
+			}
+			return;
+		}
+		Account->PrintCurrentAccount();
+	}
+}
+
+void AAuraPlayerController::Y3AccountList()
+{
+	if (UY3AccountSubsystem* Account = GetGameInstance()->GetSubsystem<UY3AccountSubsystem>())
+	{
+		Account->LoadLastAccount();
+		const TArray<FString> Ids = Account->GetKnownLocalAccountIds();
+		UE_LOG(LogTemp, Log, TEXT("[Y3Account] Known local accounts: %d"), Ids.Num());
+		for (const FString& Id : Ids)
+		{
+			const FString Label = Account->GetDisplayNameForAccountId(Id) + TEXT("：") + Id;
+			UE_LOG(LogTemp, Log, TEXT("[Y3Account] - %s"), *Label);
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Cyan, Label);
+			}
+		}
+	}
+}
+
+void AAuraPlayerController::Y3AccountReward(int32 AccountXPReward, int32 GoldReward)
+{
+	if (UY3AccountSubsystem* Account = GetGameInstance()->GetSubsystem<UY3AccountSubsystem>())
+	{
+		Account->AddRunReward(AccountXPReward, GoldReward);
+		Account->PrintCurrentAccount();
 	}
 }

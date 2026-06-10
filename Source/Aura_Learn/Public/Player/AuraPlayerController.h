@@ -17,6 +17,7 @@ class UAuraAbilitySystemComponent;
 class UAuraInputConfig;
 class UInputMappingContext;
 class UInputAction;
+class UGameplayAbility;
 struct  FInputActionValue;
 
 enum class ETargetingStatus : uint8
@@ -76,6 +77,19 @@ private:
 	static void HighlightActor(AActor* InActor);
 	static void UnHighlightActor(AActor* InActor);
 
+	UFUNCTION()
+	void Y3RefreshAccountWidgets();
+
+	UFUNCTION()
+	void Y3CreateNewAccountFromMenu();
+
+	UFUNCTION()
+	void Y3CycleLocalAccountFromMenu();
+
+	void Y3InjectMainMenuAccountPanel(class UUserWidget* Widget);
+	void Y3UpdateSelectionAccountInfo(class UUserWidget* Widget);
+	FString Y3BuildAccountSummaryText(bool bIncludeAccountId) const;
+
 private:
 	UPROPERTY(EditAnywhere,Category="Input")
 	TObjectPtr<UInputMappingContext> AuraContext;
@@ -120,4 +134,52 @@ private:
 
 	UPROPERTY(DisplayName = "法阵特效Actor")
 	TObjectPtr<AMagicCircle> MagicCircle{ nullptr };
+
+	FTimerHandle Y3AccountUiRefreshTimer;
+
+public:
+	// ===== Y3 测试模式：控制台快速测试技能(~ 控制台调用) =====
+	// Y3TestGive /Game/.../GA_Foo  → 立即授予并激活一个技能(不装备到技能栏)
+	UFUNCTION(Exec)
+	void Y3TestGive(const FString& AbilityPath);
+	// Y3TestEquip /Game/.../GA_Foo InputTag.7 → 授予并装备到指定技能栏槽位
+	UFUNCTION(Exec)
+	void Y3TestEquip(const FString& AbilityPath, const FString& SlotTagName);
+	// Y3TestActivateSlot InputTag.7 → 直接激活指定槽位上的技能(验证技能栏/CD链路)
+	UFUNCTION(Exec)
+	void Y3TestActivateSlot(const FString& SlotTagName);
+	// Y3DebugAbilities → 打印当前 ASC 技能、状态、槽位、动态标签
+	UFUNCTION(Exec)
+	void Y3DebugAbilities();
+	// Y3TestGiveAll → 授予技能库(DA_AbilityInfo)里的全部技能
+	UFUNCTION(Exec)
+	void Y3TestGiveAll();
+	// Y3TestClear → 清空已授予的全部技能
+	UFUNCTION(Exec)
+	void Y3TestClear();
+
+	// 按类授予并激活一个技能（图鉴点击 / 控制台共用）
+	UFUNCTION(BlueprintCallable, Category = "Y3|Test")
+	void GiveTestAbility(TSubclassOf<UGameplayAbility> AbilityClass, int32 Level = 1);
+
+	// Y3Atlas → 打开技能图鉴界面
+	UFUNCTION(Exec)
+	void Y3Atlas();
+
+	// Y3Account → 打印当前本地账号
+	UFUNCTION(Exec)
+	void Y3Account();
+	// Y3AccountNew [AccountId] → 创建并登录一个全新本地账号；AccountId 可省略
+	UFUNCTION(Exec)
+	void Y3AccountNew(const FString& AccountId = TEXT(""));
+	// Y3AccountLogin AccountId → 登录本机已有账号
+	UFUNCTION(Exec)
+	void Y3AccountLogin(const FString& AccountId);
+	// Y3AccountList → 打印本机已知本地账号
+	UFUNCTION(Exec)
+	void Y3AccountList();
+	// Y3AccountReward XP Gold → 手动模拟一笔结算奖励
+	UFUNCTION(Exec)
+	void Y3AccountReward(int32 AccountXPReward, int32 GoldReward);
+private:
 };

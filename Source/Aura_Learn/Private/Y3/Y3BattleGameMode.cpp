@@ -24,6 +24,21 @@
 #include "AbilitySystem/AuraAbilitySystemBPLibary.h"
 #include "AbilitySystem/Data/AbilityInfo.h"
 #include "AbilitySystemBlueprintLibrary.h"
+#include "Y3/UI/Y3SkillRegistry.h"
+#include "Y3/Y3SkillTuning.h"
+#include "Y3/Account/Y3AccountSubsystem.h"
+#include "Framework/Application/SlateApplication.h"
+
+// 技能中文名:查 DT_SkillRegistry 按 GA 类匹配,取 DisplayName 里空格后的中文段。
+static FString Y3_SkillCnName(const FAuraAbilityInfo& I)
+{
+    // 单一真源：直接取 DA 的中文显示名
+    if (!I.DisplayName.IsEmpty()) return I.DisplayName;
+    // 兜底:tag 最后一段
+    FString S = I.AbilityTag.ToString();
+    int32 Dot; if (S.FindLastChar('.', Dot)) S = S.RightChop(Dot + 1);
+    return S;
+}
 #include "Engine/Engine.h"
 
 AY3BattleGameMode::AY3BattleGameMode()
@@ -448,6 +463,17 @@ void AY3BattleGameMode::ShowResult(bool bWin, int32 StageReached)
     if (bResultShown) return;
     bResultShown = true;
 
+    const int32 AccountXPReward = bWin ? WinAccountXPReward : LossAccountXPReward;
+    const int32 GoldReward = bWin ? WinGoldReward : LossGoldReward;
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (UY3AccountSubsystem* Account = GI->GetSubsystem<UY3AccountSubsystem>())
+        {
+            Account->AddRunReward(AccountXPReward, GoldReward);
+            Account->PrintCurrentAccount();
+        }
+    }
+
     // 停止所有计时器与刷怪
     GetWorld()->GetTimerManager().ClearTimer(StageTickTimer);
     GetWorld()->GetTimerManager().ClearTimer(StageEndTimer);
@@ -483,8 +509,8 @@ void AY3BattleGameMode::ShowResult(bool bWin, int32 StageReached)
             if (UTextBlock* Title = Cast<UTextBlock>(WT->FindWidget(TEXT("TitleText"))))
             {
                 Title->SetText(FText::FromString(bWin
-                    ? FString::Printf(TEXT("胜利!  (Stage %d)"), StageReached)
-                    : FString::Printf(TEXT("失败  (Stage %d)"), StageReached)));
+                    ? FString::Printf(TEXT("胜利!  (Stage %d)\n奖励: 账号经验 +%d  金币 +%d"), StageReached, AccountXPReward, GoldReward)
+                    : FString::Printf(TEXT("失败  (Stage %d)\n奖励: 账号经验 +%d  金币 +%d"), StageReached, AccountXPReward, GoldReward)));
             }
             // 切换背景图(胜利/失败各一张)
             if (UImage* Bg = Cast<UImage>(WT->FindWidget(TEXT("BG_Image"))))
@@ -730,13 +756,37 @@ static UAuraAbilitySystemComponent* Y3_GetPlayerASC(UObject* Ctx)
 FGameplayTag AY3BattleGameMode::Y3_FindFreeInputSlot() const
 {
     const FAuraGmaeplayTags& T = FAuraGmaeplayTags::GetInstance();
-    const FGameplayTag Slots[6] = { T.InputTag_1, T.InputTag_2, T.InputTag_3, T.InputTag_4, T.InputTag_5, T.InputTag_6 };
+    // 槽1=普通攻击(预留),3选一升级技能装到 2~7 这 6 个槽。
+    const FGameplayTag Slots[6] = { T.InputTag_2, T.InputTag_3, T.InputTag_4, T.InputTag_5, T.InputTag_6, T.InputTag_7 };
     if (UAuraAbilitySystemComponent* ASC = Y3_GetPlayerASC(const_cast<AY3BattleGameMode*>(this)))
     {
         for (const FGameplayTag& S : Slots)
             if (ASC->SlotIsEmpty(S)) return S;
     }
     return FGameplayTag();
+}
+
+FGameplayTag AY3BattleGameMode::Y3_FindFreePassiveSlot() const
+{
+    const FAuraGmaeplayTags& T = FAuraGmaeplayTags::GetInstance();
+    const FGameplayTag Slots[6] = { T.InputTag_Passive_1, T.InputTag_Passive_2, T.InputTag_Passive_3,
+                                    T.InputTag_Passive_4, T.InputTag_Passive_5, T.InputTag_Passive_6 };
+    if (UAuraAbilitySystemComponent* ASC = Y3_GetPlayerASC(const_cast<AY3BattleGameMode*>(this)))
+    {
+        for (const FGameplayTag& S : Slots)
+            if (ASC->SlotIsEmpty(S)) return S;
+    }
+    return FGameplayTag();
+}
+
+int32 AY3BattleGameMode::Y3_GetSkillStock(const FGameplayTag& AbilityTag) const
+{
+    if (!SkillTuningTable) return 0;
+    TArray<FY3SkillTuningRow*> Rows;
+    SkillTuningTable->GetAllRows<FY3SkillTuningRow>(TEXT("Y3 Stock"), Rows);
+    for (const FY3SkillTuningRow* R : Rows)
+        if (R && R->AbilityTag.MatchesTagExact(AbilityTag)) return R->StockCount;
+    return 0;
 }
 
 void AY3BattleGameMode::Y3_GiveAndEquip(FGameplayTag AbilityTag)
@@ -763,27 +813,50 @@ void AY3BattleGameMode::Y3_GiveAndEquip(FGameplayTag AbilityTag)
     }
     else
     {
-        // 已存在(原RPG预给的Locked/Eligible)→ 升状态到 Unlocked
         const FGameplayTag CurStatus = ASC->GetStatusFromSpec(*ExistingSpec);
-        if (!CurStatus.MatchesTagExact(GTags.Abilities_Status_Unlocked) &&
-            !CurStatus.MatchesTagExact(GTags.Abilities_Status_Equipped))
+        const bool bAlreadyOwned =
+            CurStatus.MatchesTagExact(GTags.Abilities_Status_Unlocked) ||
+            CurStatus.MatchesTagExact(GTags.Abilities_Status_Equipped);
+        if (bAlreadyOwned)
         {
-            if (CurStatus.IsValid()) ExistingSpec->DynamicAbilityTags.RemoveTag(CurStatus);
-            ExistingSpec->DynamicAbilityTags.AddTag(GTags.Abilities_Status_Unlocked);
+            // 不放回抽卡:已拥有再抽到 = 升级(候选池已保证未满级)。Level++,不重新装槽(技能已在栏里)。
+            // 主动技能下次施放自动读新等级;被动效果的实时刷新(GE 重应用)留作后续。
+            ExistingSpec->Level += 1;
             ASC->MarkAbilitySpecDirty(*ExistingSpec);
+            UE_LOG(LogTemp, Log, TEXT("[Y3 Skill] %s 升级 -> Lv%d"), *AbilityTag.ToString(), ExistingSpec->Level);
+            ASC->AbilitiesGiveDel.Broadcast(); // 重播 AbilityInfo,刷新技能栏等级角标
+            return;
         }
+        // 原RPG预给的 Locked/Eligible → 升到 Unlocked(首次获得,继续走下面装槽)
+        if (CurStatus.IsValid()) ExistingSpec->DynamicAbilityTags.RemoveTag(CurStatus);
+        ExistingSpec->DynamicAbilityTags.AddTag(GTags.Abilities_Status_Unlocked);
+        ASC->MarkAbilitySpecDirty(*ExistingSpec);
     }
 
-    const FGameplayTag Slot = Y3_FindFreeInputSlot();
+    // 判断主动/被动:被动装到 Passive.1-6 槽并自动激活;主动装到 InputTag.2-7 槽。
+    bool bPassive = AbilityTag.ToString().Contains(TEXT("Passive"));
+    if (UAbilityInfo* Info2 = UAuraAbilitySystemBPLibary::GetAbilityInfo(this))
+    {
+        const FAuraAbilityInfo AI = Info2->FindAbilityInfoForTag(AbilityTag);
+        if (AI.AbilityType.MatchesTagExact(GTags.Abilities_Type_Passive)) bPassive = true;
+    }
+
+    const FGameplayTag Slot = bPassive ? Y3_FindFreePassiveSlot() : Y3_FindFreeInputSlot();
     if (Slot.IsValid())
     {
         ASC->Y3_EquipAbilityToSlot(AbilityTag, Slot);
-        UE_LOG(LogTemp, Log, TEXT("[Y3 Skill] %s -> slot %s"), *AbilityTag.ToString(), *Slot.ToString());
+        UE_LOG(LogTemp, Log, TEXT("[Y3 Skill] %s -> slot %s (%s)"),
+            *AbilityTag.ToString(), *Slot.ToString(), bPassive ? TEXT("被动") : TEXT("主动"));
+        // 被动的激活由 ServerEquipAbility 内部负责(首次装槽 !AbilityHasAnySlot 时 TryActivateAbility)。
+        // 这里【不要】再激活一次——重复激活会 reset 掉 InstancedPerActor 被动的定时器,
+        // 正是自动追踪导弹走三选一后不开火的根因(Y3TestGive 不装槽只激活一次,所以能开火)。
     }
     else
     {
         UE_LOG(LogTemp, Warning, TEXT("[Y3 Skill] 无空槽,%s 已获得但未装备"), *AbilityTag.ToString());
     }
+    // 首次获得/装备后重播 AbilityInfo,刷新技能栏等级角标(初始 Lv1)
+    ASC->AbilitiesGiveDel.Broadcast();
 }
 
 void AY3BattleGameMode::ShowSkillChoice()
@@ -797,19 +870,21 @@ void AY3BattleGameMode::ShowSkillChoice()
     UAbilityInfo* Info = UAuraAbilitySystemBPLibary::GetAbilityInfo(this);
     if (!ASC || !Info) return;
 
-    // 候选池:有GA + 非被动 + 状态未被选(Unlocked/Equipped 才算已选,Locked/Eligible 仍是候选)
+    // 候选池:有GA + 有图标(排除 ListenForEvent 等无图标的系统级被动) + 状态未被选。
+    // 被动技能(Halo/虹吸/AutoMissile)也纳入,保证三选一有足够候选。
     const FAuraGmaeplayTags& GTags = FAuraGmaeplayTags::GetInstance();
     TArray<FAuraAbilityInfo> Pool;
     for (const FAuraAbilityInfo& I : Info->AbilityInfomation)
     {
         if (!I.Ability || !I.AbilityTag.IsValid()) continue;
-        if (I.AbilityTag.ToString().Contains(TEXT("Passive"))) continue;
+        if (!I.AbilityIcon) continue;
+        // 不放回抽卡:已拥有的技能,只有"已升级次数 < 库存"才继续进池(可升级);满级移出。
+        // 未拥有的技能(Spec 为空)首次总能进池。封顶等级 = 1 + 库存。
         if (FGameplayAbilitySpec* Spec = ASC->GetSpecFromAbilityTag(I.AbilityTag))
         {
-            const FGameplayTag Status = ASC->GetStatusFromSpec(*Spec);
-            if (Status.MatchesTagExact(GTags.Abilities_Status_Unlocked) ||
-                Status.MatchesTagExact(GTags.Abilities_Status_Equipped))
-                continue; // 已被三选一选过,跳过
+            const int32 Stock = Y3_GetSkillStock(I.AbilityTag);
+            const int32 UpgradesDone = FMath::Max(0, Spec->Level - 1);
+            if (UpgradesDone >= Stock) continue; // 满级(含 Stock=0:抽到即定级,不再出现)
         }
         Pool.Add(I);
     }
@@ -829,6 +904,7 @@ void AY3BattleGameMode::ShowSkillChoice()
 
     CurrentChoiceTags.Reset();
     UWidgetTree* WT = SkillChoiceInstance->WidgetTree;
+    const TCHAR* BgN[3]   = { TEXT("Bg1"), TEXT("Bg2"), TEXT("Bg3") };
     const TCHAR* IconN[3] = { TEXT("Icon1"), TEXT("Icon2"), TEXT("Icon3") };
     const TCHAR* NameN[3] = { TEXT("Name1"), TEXT("Name2"), TEXT("Name3") };
     const TCHAR* BtnN[3]  = { TEXT("Btn_Card1"), TEXT("Btn_Card2"), TEXT("Btn_Card3") };
@@ -841,16 +917,34 @@ void AY3BattleGameMode::ShowSkillChoice()
             CurrentChoiceTags.Add(I.AbilityTag);
             if (WT)
             {
-                if (UImage* Ic = Cast<UImage>(WT->FindWidget(IconN[i]))) { if (I.AbilityIcon) Ic->SetBrushFromTexture(I.AbilityIcon); }
+                // 两层普通 Image 合成与技能栏一致的彩色技能图标：
+                // BgN = 彩色球底材质(BackgroundMaterial)，IconN = 图标glyph(AbilityIcon)叠在上层。
+                if (UImage* Bg = Cast<UImage>(WT->FindWidget(BgN[i])))
+                {
+                    if (I.BackgroundMaterial) Bg->SetBrushFromMaterial(I.BackgroundMaterial);
+                }
+                if (UImage* Ic = Cast<UImage>(WT->FindWidget(IconN[i])))
+                {
+                    if (I.AbilityIcon) Ic->SetBrushFromTexture(I.AbilityIcon);
+                }
                 if (UTextBlock* Nm = Cast<UTextBlock>(WT->FindWidget(NameN[i])))
                 {
-                    FString Short = I.AbilityTag.ToString();
-                    int32 Dot; if (Short.FindLastChar('.', Dot)) Short = Short.RightChop(Dot + 1);
-                    Nm->SetText(FText::FromString(Short));
+                    Nm->SetText(FText::FromString(Y3_SkillCnName(I)));
                 }
             }
         }
-        else CurrentChoiceTags.Add(FGameplayTag());
+        else
+        {
+            CurrentChoiceTags.Add(FGameplayTag());
+            if (WT)
+            {
+                // 候选不足3个时,隐藏多余的空卡(否则残留白方块)。
+                if (UWidget* W = WT->FindWidget(BtnN[i]))  W->SetVisibility(ESlateVisibility::Collapsed);
+                if (UWidget* W = WT->FindWidget(BgN[i]))   W->SetVisibility(ESlateVisibility::Collapsed);
+                if (UWidget* W = WT->FindWidget(IconN[i])) W->SetVisibility(ESlateVisibility::Collapsed);
+                if (UWidget* W = WT->FindWidget(NameN[i])) W->SetVisibility(ESlateVisibility::Collapsed);
+            }
+        }
     }
 
     if (WT)
@@ -887,6 +981,11 @@ void AY3BattleGameMode::SelectSkillCard(int32 Index)
     {
         PC->bShowMouseCursor = true;          // 保留鼠标(点击移动需要)
         FInputModeGameAndUI Mode;
+        Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+        Mode.SetHideCursorDuringCapture(false);
         PC->SetInputMode(Mode);
+        // 三选一 widget(SetIsFocusable)抢走了键盘焦点,移除后必须还给游戏视口,
+        // 否则数字键放技能失效(鼠标点击移动仍可,走视口指针)。
+        FSlateApplication::Get().SetAllUserFocusToGameViewport();
     }
 }
