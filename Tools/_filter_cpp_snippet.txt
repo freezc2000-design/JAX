@@ -1,0 +1,18 @@
+// ==== 一级 tab(属性/分类) ==== (key, 中文标签)
+// AttrKey: all=全部, str/agi/int/all=英雄属性, monster/system=cat
+//   prim key="all" label="🗂️ 全部"
+//   prim key="str" label="💪 力量英雄"
+//   prim key="agi" label="🏹 敏捷英雄"
+//   prim key="int" label="🔮 智力英雄"
+//   prim key="allhero" label="✨ 全才英雄"
+//   prim key="monster" label="🐲 怪物技能"
+//   prim key="system" label="⚙️ 系统/道具"
+
+// ==== 二级分组(组名 -> 标签) ====
+// 组「施法方式」: { TEXT("主动"), TEXT("被动"), TEXT("引导"), TEXT("无目标"), TEXT("指向地面"), TEXT("指向单位"), TEXT("自动施法") }
+// 组「伤害类型」: { TEXT("魔法伤害"), TEXT("物理伤害"), TEXT("纯粹伤害") }
+// 组「控制效果」: { TEXT("眩晕"), TEXT("减速"), TEXT("沉默"), TEXT("缠绕/定身"), TEXT("击飞/位移"), TEXT("嘲讽/恐惧") }
+// 组「玩法功能」: { TEXT("范围伤害(AOE)"), TEXT("持续伤害(DOT)"), TEXT("治疗"), TEXT("护盾/减伤"), TEXT("增益/加速"), TEXT("召唤"), TEXT("驱散/净化"), TEXT("隐身"), TEXT("视野/侦查") }
+// 组「魔免交互」: { TEXT("穿透魔免"), TEXT("被魔免阻挡") }
+// 组「驱散性」: { TEXT("可驱散"), TEXT("仅强驱散"), TEXT("不可驱散") }
+// 组「目标阵营」: { TEXT("敌方目标"), TEXT("友方目标") }

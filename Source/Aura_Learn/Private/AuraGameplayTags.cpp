@@ -151,6 +151,10 @@ void FAuraGmaeplayTags::InitInputTags()
 		FName("InputTag.6"),
 		FString("键盘6键")
 	);
+	GetInstance().InputTag_7 = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.7"),
+		FString("键盘7键")
+	);
 
 	GetInstance().InputTag_Passive = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("InputTag.Passive"),
@@ -164,6 +168,22 @@ void FAuraGmaeplayTags::InitInputTags()
 	GetInstance().InputTag_Passive_2 = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("InputTag.Passive.2"),
 		FString("被动技能2")
+	);
+	GetInstance().InputTag_Passive_3 = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.Passive.3"),
+		FString("被动技能3")
+	);
+	GetInstance().InputTag_Passive_4 = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.Passive.4"),
+		FString("被动技能4")
+	);
+	GetInstance().InputTag_Passive_5 = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.Passive.5"),
+		FString("被动技能5")
+	);
+	GetInstance().InputTag_Passive_6 = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.Passive.6"),
+		FString("被动技能6")
 	);
 
 	/*交互状态*/
@@ -338,6 +358,11 @@ void FAuraGmaeplayTags::InitSkillTags()
 		FString("闪电链路")
 	);
 
+	GetInstance().Abilities_Lightning_ChainLightning = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Abilities.Lightning.ChainLightning"),
+		FString("闪电链")
+	);
+
 	GetInstance().Abilities_Arcane= UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Abilities.Arcane"),
 		FString("Arcane Shards Ability Tag")
@@ -364,6 +389,10 @@ void FAuraGmaeplayTags::InitSkillTags()
 	GetInstance().Abilities_Passive_HaloOfProtection = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Abilities.Passive.HaloOfProtection"),
 		FString("Halo Of Protection")
+	);
+	GetInstance().Abilities_Passive_AutoMissile = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Abilities.Passive.AutoMissile"),
+		FString("Auto Missile")
 	);
 
 	GetInstance().CombatSocket_Weapon = UGameplayTagsManager::Get().AddNativeGameplayTag(
@@ -462,5 +491,10 @@ void FAuraGmaeplayTags::InitSkillTags()
 	GetInstance().Cooldown_Lightning_Electrocute = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Cooldown.Lightning.Electrocute"),
 		FString("闪链冷却")
+	);
+
+	GetInstance().Cooldown_Lightning_ChainLightning = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Cooldown.Lightning.ChainLightning"),
+		FString("闪电链冷却")
 	);
 }
