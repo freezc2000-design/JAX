@@ -26,13 +26,7 @@ public:
 	virtual void LevelUp_Implementation() override;
 	virtual int32 GetXP_Implementation() const override;
 	virtual int32 FindLevelFromXP_Implementation(int32 XP) const override;
-	virtual int32 GetAttributePointReward_Implementation(const int32 Level) const override;
-	virtual int32 GetSpellPointReward_Implementation(const int32 Level) const override;
 	virtual void AddToPlayerLevel_Implementation(int32 InPlayerLevel) const override;
-	virtual void AddToSpellPoints_Implementation(int32 InSpellPoint) const override;
-	virtual void AddToAttributePoints_Implementation(int32 InAttributePoint) const override;
-	virtual int32 GetCurrentAttributePoint_Implementation() const override;
-	virtual int32 GetCurrentSpellPoint_Implementation() const override;
 	virtual void HideMagicCricle_Implementation() override;
 	virtual void ShowMagicCricle_Implementation(UMaterialInterface* DecalMaterial = nullptr) override;
 	virtual void SaveProgress_Implementation(const FName& PlayerStartName) override;

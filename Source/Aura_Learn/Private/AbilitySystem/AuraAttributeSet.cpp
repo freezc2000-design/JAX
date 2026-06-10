@@ -184,9 +184,6 @@ void UAuraAttributeSet::HandleIncomingXP(const FEffectProperties& Props)
 		for (; LevelUpNum > 0; LevelUpNum--)
 		{
 
-			//升级奖励赋予
-			IPlayerInterface::Execute_AddToAttributePoints(Props.SourceAvatarActor, IPlayerInterface::Execute_GetAttributePointReward(Props.SourceAvatarActor,ICombatInterface::Execute_GetPlayerLevel(Props.SourceAvatarActor)));
-			IPlayerInterface::Execute_AddToSpellPoints(Props.SourceAvatarActor, IPlayerInterface::Execute_GetSpellPointReward(Props.SourceAvatarActor, ICombatInterface::Execute_GetPlayerLevel(Props.SourceAvatarActor)));
 
 			IPlayerInterface::Execute_LevelUp(Props.SourceAvatarActor);
 

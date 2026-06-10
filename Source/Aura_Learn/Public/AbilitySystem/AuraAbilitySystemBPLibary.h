@@ -11,7 +11,6 @@ class ULootTiers;
 class ULoadScreenSaveGame;
 class UAbilityInfo;
 class AAuraHUD;
-class USpellMenuWgtController;
 class UCombatInterface;
 class UAbilitySystemComponent;
 enum class ECharacterClass : uint8;
@@ -30,9 +29,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "AuraAbilitySystemLib|WgtController", meta = (DefaultToSelf = "WorldContenxt"))
 	static UAttributeMenuWgtController* GetAttributeMenuWgtController(const UObject* WorldContenxt);
-
-	UFUNCTION(BlueprintPure, Category = "AuraAbilitySystemLib|WgtController", meta = (DefaultToSelf = "WorldContenxt"))
-	static USpellMenuWgtController* GetSpellMenuWgtController(const UObject* WorldContenxt);
 
 	static bool SetWgtCtrlParamsByWorldContenxt(const UObject* WorldContenxt,OUT FWidgetControllerParams& WgtCtrlParam,AAuraHUD*& OutAuraHud);
 

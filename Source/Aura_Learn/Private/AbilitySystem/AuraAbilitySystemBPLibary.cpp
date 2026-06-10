@@ -34,16 +34,6 @@ UAttributeMenuWgtController* UAuraAbilitySystemBPLibary::GetAttributeMenuWgtCont
 	return AuraHUD->GetAtributeMenuController(WgtControllerParams);
 }
 
-USpellMenuWgtController* UAuraAbilitySystemBPLibary::GetSpellMenuWgtController(const UObject* WorldContenxt)
-{
-	FWidgetControllerParams WgtControllerParams{};
-	AAuraHUD* AuraHUD{ nullptr };
-	bool Sucesses = SetWgtCtrlParamsByWorldContenxt(WorldContenxt, WgtControllerParams, AuraHUD);
-	if (!Sucesses)return nullptr;
-
-	return AuraHUD->GetSpellMenuController(WgtControllerParams);
-}
-
 bool UAuraAbilitySystemBPLibary::SetWgtCtrlParamsByWorldContenxt(const UObject* WorldContenxt,
                                                                  OUT FWidgetControllerParams& WgtCtrlParam,
                                                                  AAuraHUD*& OutAuraHud)
