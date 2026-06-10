@@ -1,36 +1,21 @@
 # GASAura / Y3demo — Claude operating notes
 
-This project is **two game modes in one .uproject**, post-2026-05-22 reorganization:
-- The original **GASAura** GAS course project (Stephen Ulibarri / DruidMech): top-down action RPG with click-to-move, MVVM UI, GAS, network replication. Original assets still at `Content/Blueprints/` + `Content/Assets/`, C++ in `Source/Aura_Learn/`.
-- **Y3demo** — a MOBA-roguelike survival mode. **The `Content/Y3Demo/` subdirectory was FLATTENED into the top-level layout** on 2026-05-22. Use the new paths below.
+This project was the GASAura GAS course project (Stephen Ulibarri / DruidMech), now converted into **Y3demo** — a single-player MOBA-roguelite survival game. C++ in `Source/Aura_Learn/`.
 
-## Post-reorg content layout (CANONICAL)
+## Content layout (CANONICAL since 2026-06-10 restructure — 7 top dirs, see Tools/Y3_Folder_Structure.md)
 
-| New path | What's there |
+| Top dir | What's there |
 |---|---|
-| `/Game/Characters/Heroes/BP_Hero_*` | 6 hero BPs (Chifang / Dianzuan / Furi / Kulou / Selina / Youxia) |
-| `/Game/Characters/Heroes/Models/SK_Hero_Default*` | The first imported Y3 hero skeletal mesh (was `0001.fbx` → renamed) + 4 materials (`M_Hero_Default`, `M_Hero_257547176`, etc.) |
-| `/Game/Characters/Enemies/BP_Mob_<id>` | ~50 mob BPs, placeholders (no mesh) inheriting `AY3EnemyBase` |
-| `/Game/Characters/Enemies/BP_Boss_<id>` | ~30 boss BPs, placeholders |
-| `/Game/Characters/Enemies/BP_Bldg_<id>` | ~10 building/structure boss BPs, placeholders |
-| `/Game/Core/GameModes/BP_BattleGameMode` | The Y3 battle GameMode (inherits `AY3BattleGameMode`). Was `BP_Y3_BattleGameMode`. |
-| `/Game/Core/GameModes/BP_SelectionGameMode` | Hero selection screen GameMode |
-| `/Game/Core/GameModes/BP_MainMenuGameMode` | Main menu GameMode |
-| `/Game/Core/BP_StageSpawner` | Spawner BP (inherits `AY3StageSpawner`). NOTE: NOT in `/Core/GameModes/`, in `/Core/` directly. |
-| `/Game/Data/DT_Stage` | Stage table (was `DT_Y3_Stage`) |
-| `/Game/Data/DT_SpawnTimer` | Timer table (was `DT_Y3_Timer`) |
-| `/Game/Data/DT_UnitType` | Unit table (was `DT_Y3_Unit`) |
-| `/Game/Data/DT_UnitAttr` | Attribute table (was `DT_Y3_Attr`) |
-| `/Game/Data/CSVSource/` | Raw CSV exports from Y3 source for re-import |
-| `/Game/UI/HUD/WBP_StageHUD` | Battle HUD (was `WBP_Y3_StageHUD`) |
-| `/Game/UI/Menus/WBP_MainMenu` | Main menu UI |
-| `/Game/UI/Menus/WBP_HeroSelection` | Hero selection UI |
-| `/Game/UI/Menus/WBP_LevelUpChoice` | **3-choice upgrade UI** (still empty logic, needs Y3UpgradeManager wiring) |
-| `/Game/UI/Menus/WBP_SkillChoice` | Skill choice UI (was `WBP_Y3_SkillChoice_Demo`) |
-| `/Game/UI/Menus/Heroes/T_<HeroName>` | 6 hero portrait textures |
-| `/Game/Maps/Map_Y3_*` | All Y3 maps (MainMenu / Selection / Battle_01) — at top level Maps/, not nested |
+| `/Game/Core/` | Framework: `GameModes/` (BP_MainMenuGameMode / BP_SelectionGameMode / BP_BattleGameMode + BP_StageSpawner), `Player/` (BP_AuraGameInstance / BP_AuraPlayerController / BP_AuraPlayerState / BP_LoadScreenSaveGame[legacy]), `Input/` (IMC_AuraContext, IA_*, DA_AuraInputAction) |
+| `/Game/Characters/` | `Heroes/` (6 BP_Hero_* + Aura/ BP_AuraCharacter+ABP + Demo/ mesh-swap set + Models/ SK_Hero_Default), `Enemies/` (enemy BPs per race + AI/ behavior trees + Art/ enemy models), `Models/` (Shared/Aura model set + AnimNotifies) |
+| `/Game/Gameplay/` | `Abilities/` (all GAs+CD/Cost GEs by element, Enemy/ enemy GAS), `Effects/` (attribute GEs, Cues/ GameplayCueNotify — ini path!, Generic/GE_Damage), `Actors/` (potions/crystals/flame pillar/magic circles/pickups), `SharedData/` (DA_AbilityInfo, DA_CharacterClassInfo, DA_AttributeInfo, DA_LevelUpInfo, DA_LootTiers, CT_* curve tables) |
+| `/Game/UI/` | `HUD/` (BP_Y3HUD, WBP_StageHUD, overlay, skill slots, controllers), `Menus/` (main/selection/skill-choice/result/atlas), `Panels/` (read-only attribute menu), `SkillIcons/` (833), `Fonts/`, `Art/` (UI textures/materials incl. login art), `Common/` |
+| `/Game/Art/` | `Effects/` (28 Niagara systems), `Sounds/` (all audio), `Materials/`, `Spells/` (shard meshes) |
+| `/Game/Data/` | All DT_* tables (Stage/SpawnTimer/UnitType/UnitAttr/SkillTuning/UpgradeChoice) + `CSVSource/` |
+| `/Game/Maps/` | Map_Y3_MainMenu / Map_Y3_Selection / Map_Y3_Battle_01 |
 
-**Do NOT use the old `/Game/Y3Demo/...` paths — they don't exist anymore.** UE redirectors auto-translate in BP asset references, but raw `LoadObject` in C++ MUST use new paths.
+**Old `/Game/Blueprints/`, `/Game/Assets/`, `/Game/Demo/` trees no longer exist** (restructured 2026-06-10, redirectors cleaned). Config hard paths already updated: `GameInstanceClass` → `/Game/Core/Player/...`, `GameplayCueNotifyPaths` → `/Game/Gameplay/Effects/Cues`. Note: the old BP_Mob_*/BP_Boss_* placeholder BPs were deleted in earlier slimming; wave spawning uses `NormalEnemyPool`/`EliteEnemyPool`/`BossEnemyClass` on the BP_BattleGameMode CDO.
+**Asset-move gotcha (learned hard)**: editor folder moves DON'T fix BP node pin-default object paths and may silently fail on in-use assets — after any bulk move, binary-scan uassets for stale path strings and diff git D-vs-A pairs for losses.
 
 Engine: **UE 5.7**. `.uproject` is `Aura_Learn.uproject`. C++ module name is `Aura_Learn`. Tag singleton has a typo: `FAuraGmaeplayTags` (not "Gameplay") — do not "fix" without coordinating, the project relies on this exact name.
 
@@ -71,10 +56,10 @@ rpc("read_asset_properties", { assetPath, includeValues: true });
 ### Set a DataAsset's struct array (e.g. AbilityInputActions, GE modifiers, etc.)
 ```js
 rpc("set_property", {
-  objectPath: "/Game/Blueprints/Input/DA_AuraInputAction.DA_AuraInputAction",
+  objectPath: "/Game/Core/Input/DA_AuraInputAction.DA_AuraInputAction",
   propertyName: "AbilityInputActions",
   value: [
-    { InputAction: "/Game/Blueprints/Input/InputActions/IA_KeyNum1.IA_KeyNum1",
+    { InputAction: "/Game/Core/Input/InputActions/IA_KeyNum1.IA_KeyNum1",
       InputTag:    "(TagName=\"InputTag.1\")" },
     // ...
   ],
@@ -116,9 +101,9 @@ unreal.EditorAssetLibrary.save_loaded_asset(wbp)
 ## Input system overview (post-fix state)
 
 - **InputTags** (native, defined in `AuraGameplayTags.cpp` `InitInputTags()`): `InputTag.LMB`, `InputTag.RMB`, `InputTag.1`–`InputTag.6`, `InputTag.Passive`, `InputTag.Passive.1`, `InputTag.Passive.2`.
-- **IMC_AuraContext** (`Content/Blueprints/Input/IMC_AuraContext.uasset`): WASD → IA_Move, keys 1-6 → IA_KeyNum1-6, LMB/RMB still mapped to IA_LMB/RMB, LeftShift → IA_Shift.
-- **DA_AuraInputAction** (`Content/Blueprints/Input/DA_AuraInputAction.uasset`): 7 entries — `IA_LMB→InputTag.LMB`, `IA_KeyNum1..6→InputTag.1..6`. RMB intentionally not bound (no ability uses it). LMB drives both `InputTag.LMB`-tagged abilities (none currently equipped) AND the click-to-move logic in `AAuraPlayerController::AbilityInputTagReleased`.
-- **Skill UI** (`Content/Blueprints/UI/SpellMenu/WBP_EquippedSpellRow.uasset`): `Wrapbox_offensive` displays 6 number slots (1-6) followed by passive row. The widgets internally are still named `Skill_LMB` / `Skill_RMB` for slots 5 and 6 (their `InputTag` BP variable was retargeted to `InputTag.5` / `InputTag.6`, and the adjacent TextBlock labels are "5"/"6"). The user accepted leaving the internal names to avoid breaking any BP graph that does `Get Widget By Name`.
+- **IMC_AuraContext** (`Content/Core/Input/IMC_AuraContext.uasset`): WASD → IA_Move, keys 1-6 → IA_KeyNum1-6, LMB/RMB still mapped to IA_LMB/RMB, LeftShift → IA_Shift.
+- **DA_AuraInputAction** (`Content/Core/Input/DA_AuraInputAction.uasset`): 7 entries — `IA_LMB→InputTag.LMB`, `IA_KeyNum1..6→InputTag.1..6`. RMB intentionally not bound (no ability uses it). LMB drives both `InputTag.LMB`-tagged abilities (none currently equipped) AND the click-to-move logic in `AAuraPlayerController::AbilityInputTagReleased`.
+- **Skill UI** (`(已删除:旧SpellMenu链)`): `Wrapbox_offensive` displays 6 number slots (1-6) followed by passive row. The widgets internally are still named `Skill_LMB` / `Skill_RMB` for slots 5 and 6 (their `InputTag` BP variable was retargeted to `InputTag.5` / `InputTag.6`, and the adjacent TextBlock labels are "5"/"6"). The user accepted leaving the internal names to avoid breaking any BP graph that does `Get Widget By Name`.
 
 ## Monster design intent (Y3demo)
 
@@ -167,9 +152,9 @@ Full detail (with state-of-mapping, P0-P5 phase plan): see [[project-y3demo-miss
 ## BP_Y3_BattleGameMode required data refs (CRASH ROOT)
 
 `AY3BattleGameMode` inherits from `AAuraGameModeBase` which declares 3 critical `UPROPERTY(EditDefaultsOnly)` that MUST be set on the BP CDO or `UExecCalc_Damage::Execute_Implementation()` will crash with `EXCEPTION_ACCESS_VIOLATION` at `ExecCalc_Damage.cpp:158` the moment an enemy applies damage to the player:
-- `CharacterClassInfo` → `/Game/Blueprints/AbilitySystem/Data/DA_CharacterClassInfo`
-- `AbilityInfo` → `/Game/Blueprints/AbilitySystem/Data/DA_AbilityInfo`
-- `LootTiersInfo` → `/Game/Blueprints/AbilitySystem/Data/DA_LootTiers`
+- `CharacterClassInfo` → `/Game/Gameplay/SharedData/DA_CharacterClassInfo`
+- `AbilityInfo` → `/Game/Gameplay/SharedData/DA_AbilityInfo`
+- `LootTiersInfo` → `/Game/Gameplay/SharedData/DA_LootTiers`
 
 `UAuraAbilitySystemBPLibary::GetCharacterClassInfo` returns `GameMode->CharacterClassInfo` with no null check, then `ExecCalc_Damage` derefs `DefaultClassInfo->DamageCalculationCoefficients->FindCurve(...)`. If you fork a new GameMode from `AAuraGameModeBase`, copy these 3 refs from `BP_AuraGameMode` immediately. Fixed via `set_property` (see [[reference-ue-mcp-api-quirks]] for the pattern) on 2026-05-22.
 
