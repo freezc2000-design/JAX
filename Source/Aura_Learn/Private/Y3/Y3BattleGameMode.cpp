@@ -771,8 +771,8 @@ static UAuraAbilitySystemComponent* Y3_GetPlayerASC(UObject* Ctx)
 FGameplayTag AY3BattleGameMode::Y3_FindFreeInputSlot() const
 {
     const FAuraGmaeplayTags& T = FAuraGmaeplayTags::GetInstance();
-    // 槽1=普通攻击(预留),3选一升级技能装到 2~7 这 6 个槽。
-    const FGameplayTag Slots[6] = { T.InputTag_2, T.InputTag_3, T.InputTag_4, T.InputTag_5, T.InputTag_6, T.InputTag_7 };
+    // 槽1=初始技能(火球),3选一升级技能装到 2~6 这 5 个槽(第7槽已砍,共6主动技能)。
+    const FGameplayTag Slots[5] = { T.InputTag_2, T.InputTag_3, T.InputTag_4, T.InputTag_5, T.InputTag_6 };
     if (UAuraAbilitySystemComponent* ASC = Y3_GetPlayerASC(const_cast<AY3BattleGameMode*>(this)))
     {
         for (const FGameplayTag& S : Slots)
