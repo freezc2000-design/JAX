@@ -111,6 +111,8 @@ public:
     void Y3ToggleAttributeMenu();
 
     UFUNCTION() void OnStatsButtonClicked();
+    UFUNCTION() void OnSkillButtonClicked();    // 右侧栏"技能"图标 → 技能图鉴
+    UFUNCTION() void OnSettingsButtonClicked(); // 右侧栏"设置"图标 → 退出确认弹窗(复用overlay QuiteGameTip)
 
     /** 整局 Boss 限时（秒）；<=0 表示不启用（简易波次模式下不使用） */
     UPROPERTY(EditDefaultsOnly, Category="Y3|Rules")

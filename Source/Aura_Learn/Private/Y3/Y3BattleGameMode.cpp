@@ -28,6 +28,8 @@
 #include "Y3/Y3SkillTuning.h"
 #include "Y3/Y3UpgradeChoice.h"
 #include "AbilitySystem/Data/AttributeInfo.h"
+#include "Player/AuraPlayerController.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
 #include "UI/WidgetController/AttributeMenuWgtController.h"
 #include "Y3/Account/Y3AccountSubsystem.h"
 #include "Framework/Application/SlateApplication.h"
@@ -72,11 +74,15 @@ void AY3BattleGameMode::BeginPlay()
         if (StageHUDInstance)
         {
             StageHUDInstance->AddToViewport(100);
-            // HUD"属性"按钮 → 开关角色属性面板
+            // 右侧图标栏：角色→属性面板 技能→图鉴 设置→退出确认；背包/强化未开发,按钮在WBP里禁用
             if (StageHUDInstance->WidgetTree)
             {
                 if (UButton* B = Cast<UButton>(StageHUDInstance->WidgetTree->FindWidget(TEXT("Btn_Stats"))))
                     B->OnClicked.AddDynamic(this, &AY3BattleGameMode::OnStatsButtonClicked);
+                if (UButton* B = Cast<UButton>(StageHUDInstance->WidgetTree->FindWidget(TEXT("Btn_Skill"))))
+                    B->OnClicked.AddDynamic(this, &AY3BattleGameMode::OnSkillButtonClicked);
+                if (UButton* B = Cast<UButton>(StageHUDInstance->WidgetTree->FindWidget(TEXT("Btn_Settings"))))
+                    B->OnClicked.AddDynamic(this, &AY3BattleGameMode::OnSettingsButtonClicked);
             }
         }
     }
@@ -1137,4 +1143,28 @@ void AY3BattleGameMode::Y3ToggleAttributeMenu()
 void AY3BattleGameMode::OnStatsButtonClicked()
 {
     Y3ToggleAttributeMenu();
+}
+
+void AY3BattleGameMode::OnSkillButtonClicked()
+{
+    if (AAuraPlayerController* PC = Cast<AAuraPlayerController>(UGameplayStatics::GetPlayerController(this, 0)))
+        PC->Y3Atlas();
+}
+
+void AY3BattleGameMode::OnSettingsButtonClicked()
+{
+    // 复用 overlay 里现成的退出确认弹窗(QuiteGameTip 无参,直接按名触发)
+    TArray<UUserWidget*> Widgets;
+    UWidgetBlueprintLibrary::GetAllWidgetsOfClass(this, Widgets, UUserWidget::StaticClass(), true);
+    for (UUserWidget* W : Widgets)
+    {
+        if (W && W->GetClass()->GetName().Contains(TEXT("WBP_Y3BattleOverlay")))
+        {
+            if (UFunction* F = W->FindFunction(TEXT("QuiteGameTip")))
+            {
+                W->ProcessEvent(F, nullptr);
+                return;
+            }
+        }
+    }
 }
