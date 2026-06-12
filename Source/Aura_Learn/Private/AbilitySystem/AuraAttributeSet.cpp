@@ -322,6 +322,7 @@ void UAuraAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	/*次要属性*/
 	DOREPLIFETIME_CONDITION_NOTIFY(UAuraAttributeSet, Armor, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UAuraAttributeSet, ArmorPenetration, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UAuraAttributeSet, AttackPower, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UAuraAttributeSet, BlockChance, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UAuraAttributeSet, CriticalHitChance, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UAuraAttributeSet, CriticalHitDamage, COND_None, REPNOTIFY_Always);
@@ -358,6 +359,7 @@ ATTRIBUTE_ONREP(UAuraAttributeSet, Vigor)
 
 ATTRIBUTE_ONREP(UAuraAttributeSet, Armor)
 ATTRIBUTE_ONREP(UAuraAttributeSet, ArmorPenetration)
+ATTRIBUTE_ONREP(UAuraAttributeSet, AttackPower)
 ATTRIBUTE_ONREP(UAuraAttributeSet, BlockChance)
 ATTRIBUTE_ONREP(UAuraAttributeSet, CriticalHitChance)
 ATTRIBUTE_ONREP(UAuraAttributeSet, CriticalHitDamage)

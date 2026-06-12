@@ -19,7 +19,7 @@ struct AuraDamageStatics
 	DECLARE_ATTRIBUTE_CAPTUREDEF(LightningResistance)
 	DECLARE_ATTRIBUTE_CAPTUREDEF(ArcaneResistance)
 	DECLARE_ATTRIBUTE_CAPTUREDEF(PhysicalResistance)
-	DECLARE_ATTRIBUTE_CAPTUREDEF(Strength)   // P2 攻击力:放大技能基础伤害
+	DECLARE_ATTRIBUTE_CAPTUREDEF(AttackPower)   // 攻击力:直接放大技能基础伤害(替代旧力量派生)
 
 	AuraDamageStatics();
 
