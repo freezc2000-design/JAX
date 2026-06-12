@@ -164,6 +164,10 @@ public:
     UFUNCTION(BlueprintPure, Category="Y3|SimpleWave")
     FString GetWaveHUDText() const;
 
+    /** P1数值表：按技能tag+伤害类型查每级伤害。bFound=表里命中(否则调用方回退GA自带ScalableFloat)。 */
+    UFUNCTION(BlueprintCallable, Category="Y3|Tuning")
+    float GetTunedDamage(const FGameplayTag& AbilityTag, const FGameplayTag& DamageType, int32 Level, bool& bFound) const;
+
     /** 玩家死亡延迟显示结果（秒） */
     UPROPERTY(EditDefaultsOnly, Category="Y3|Rules")
     float ResultShowDelay = 2.0f;

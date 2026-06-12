@@ -803,6 +803,26 @@ int32 AY3BattleGameMode::Y3_GetSkillStock(const FGameplayTag& AbilityTag) const
     return 0;
 }
 
+float AY3BattleGameMode::GetTunedDamage(const FGameplayTag& AbilityTag, const FGameplayTag& DamageType, int32 Level, bool& bFound) const
+{
+    bFound = false;
+    if (!SkillTuningTable) return 0.f;
+    TArray<FY3SkillTuningRow*> Rows;
+    SkillTuningTable->GetAllRows<FY3SkillTuningRow>(TEXT("Y3 TunedDamage"), Rows);
+    for (const FY3SkillTuningRow* R : Rows)
+    {
+        if (R && R->AbilityTag.MatchesTagExact(AbilityTag)
+              && R->DamageType.MatchesTagExact(DamageType)
+              && R->DamagePerLevel.Num() > 0)
+        {
+            const int32 Idx = FMath::Clamp(Level - 1, 0, R->DamagePerLevel.Num() - 1);
+            bFound = true;
+            return R->DamagePerLevel[Idx];
+        }
+    }
+    return 0.f;
+}
+
 void AY3BattleGameMode::Y3_GiveAndEquip(FGameplayTag AbilityTag)
 {
     UAuraAbilitySystemComponent* ASC = Y3_GetPlayerASC(this);

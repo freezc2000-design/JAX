@@ -23,4 +23,15 @@ struct FY3SkillTuningRow : public FTableRowBase
 	// 0 = 不参与抽卡升级(抽到即定级,不再出现在卡池)。
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Y3|Tuning", meta = (DisplayName = "库存(可升级份数)"))
 	int32 StockCount = 0;
+
+	// ===== 伤害层(P1 数值表格化) =====
+	// 主伤害类型(Damage.Fire / Damage.Lightning / Damage.Arcane / Damage.Physical)。
+	// 留空 = 该技能不走表伤害(回退 GA 自带的 ScalableFloat)。
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Y3|Tuning|Damage", meta = (Categories = "Damage", DisplayName = "主伤害类型"))
+	FGameplayTag DamageType;
+
+	// 每级伤害 [Lv1, Lv2, ... Lv6]。读取时按技能等级索引(越界则取最后一项)。
+	// 策划直接填每级数值;空数组 = 不走表(回退 ScalableFloat)。
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Y3|Tuning|Damage", meta = (DisplayName = "每级伤害[Lv1..Lv6]"))
+	TArray<float> DamagePerLevel;
 };
