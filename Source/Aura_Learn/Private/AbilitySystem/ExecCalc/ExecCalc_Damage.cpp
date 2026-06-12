@@ -21,6 +21,7 @@ AuraDamageStatics::AuraDamageStatics()
 	DEFINE_ATTRIBUTE_CAPTUREDEF(UAuraAttributeSet, LightningResistance, Target, false)
 	DEFINE_ATTRIBUTE_CAPTUREDEF(UAuraAttributeSet, ArcaneResistance, Target, false)
 	DEFINE_ATTRIBUTE_CAPTUREDEF(UAuraAttributeSet, PhysicalResistance, Target, false)
+	DEFINE_ATTRIBUTE_CAPTUREDEF(UAuraAttributeSet, Strength, Source, false)   // P2 攻击力(来源)
 
 }
 
@@ -36,6 +37,7 @@ UExecCalc_Damage::UExecCalc_Damage()
 	RelevantAttributesToCapture.Add(GetDamageStatics().LightningResistanceDef);
 	RelevantAttributesToCapture.Add(GetDamageStatics().ArcaneResistanceDef);
 	RelevantAttributesToCapture.Add(GetDamageStatics().PhysicalResistanceDef);
+	RelevantAttributesToCapture.Add(GetDamageStatics().StrengthDef);   // P2 攻击力
 }
 
 void UExecCalc_Damage::Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams,
@@ -129,6 +131,15 @@ void UExecCalc_Damage::Execute_Implementation(const FGameplayEffectCustomExecuti
 			Damage += CurentTypeDamge;
 		}
 
+	}
+
+	// P2 攻击力:来源"力量"放大技能基础伤害 —— 基础值 ×(1 + 力量×系数)。
+	// 力量=0(如未设力量的怪)→×1,完全兼容旧行为;玩家初始力量10→+20%。
+	{
+		float SourceStrength = 0.f;
+		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(GetDamageStatics().StrengthDef, EvaluationParameters, SourceStrength);
+		SourceStrength = FMath::Max(0.f, SourceStrength);
+		Damage *= (1.f + SourceStrength * 0.02f);   // 每点力量+2%伤害;TODO 系数待进数值表
 	}
 
 	//将格挡机会参与计算
