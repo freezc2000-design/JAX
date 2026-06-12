@@ -147,6 +147,9 @@ public:
     // 简易模式刷怪半径
     UPROPERTY(EditDefaultsOnly, Category="Y3|SimpleWave") float WaveSpawnRadius = 1200.f;
 
+    // 开局缓冲：第一波怪延迟出现的秒数(给玩家反应/开打的时间);精英轨道额外再等一个普通缓冲
+    UPROPERTY(EditDefaultsOnly, Category="Y3|SimpleWave") float FirstWaveDelay = 4.f;
+
     // 体型差异化已改为烤进BP网格;运行时缩放保留接口但默认全=1(不覆盖BP尺寸)
     UPROPERTY(EditDefaultsOnly, Category="Y3|SimpleWave") float NormalScale = 1.0f;
     UPROPERTY(EditDefaultsOnly, Category="Y3|SimpleWave") float EliteScale = 1.0f;

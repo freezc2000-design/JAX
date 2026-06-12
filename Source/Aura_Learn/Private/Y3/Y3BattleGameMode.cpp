@@ -587,15 +587,14 @@ void AY3BattleGameMode::StartSimpleWaves()
     UE_LOG(LogTemp, Log, TEXT("[Y3 Wave] SimpleWave start: Normal %d波/%.0fs, Elite %d波/%.0fs, Boss @%.0fs kill %.0fs"),
         NormalWaveCount, NormalInterval, EliteWaveCount, EliteInterval, BossSpawnDelay, BossKillTimeLimit);
 
-    // 普通轨道：立即第一波 + 周期
-    NormalWaveTick();
-    if (NormalWaveCount > 1)
-        GetWorld()->GetTimerManager().SetTimer(NormalWaveTimer, this, &AY3BattleGameMode::NormalWaveTick, NormalInterval, true);
+    // 普通轨道：开局缓冲 FirstWaveDelay 后第一波,之后周期(InFirstDelay 让首波也延迟,不再立即刷)
+    const float FirstDelay = FMath::Max(0.1f, FirstWaveDelay);
+    if (NormalWaveCount > 0)
+        GetWorld()->GetTimerManager().SetTimer(NormalWaveTimer, this, &AY3BattleGameMode::NormalWaveTick, NormalInterval, NormalWaveCount > 1, FirstDelay);
 
-    // 精英轨道：立即第一波 + 周期
-    EliteWaveTick();
-    if (EliteWaveCount > 1)
-        GetWorld()->GetTimerManager().SetTimer(EliteWaveTimer, this, &AY3BattleGameMode::EliteWaveTick, EliteInterval, true);
+    // 精英轨道：比普通再晚一个缓冲出现(避免开局普通+精英同时围殴)
+    if (EliteWaveCount > 0)
+        GetWorld()->GetTimerManager().SetTimer(EliteWaveTimer, this, &AY3BattleGameMode::EliteWaveTick, EliteInterval, EliteWaveCount > 1, FirstDelay * 2.f);
 
     // Boss 轨道：延迟 BossSpawnDelay 后出现
     GetWorld()->GetTimerManager().SetTimer(BossSpawnTimer, this, &AY3BattleGameMode::SpawnBossWave, FMath::Max(0.1f, BossSpawnDelay), false);
